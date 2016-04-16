@@ -38,30 +38,19 @@ namespace GUI {
 		private bool sendAny = true;
 		private bool sendOne = false;
 		private string botName = "";
+        private string supportThread = "https://www.steamgifts.com/discussion/5U8NL/";
 		string[] botList;
 		private string URL = "";
 		ServerProcess proc;
 		private Client Client;
 		public Form1() {
 			InitializeComponent();
-
-			// So either the ASF.exe is in the same directory, or we assume development environment.
-			string ASF = "ASF.exe";
-			if (!File.Exists(ASF)) {
-				ASF = "../../../ArchiSteamFarm/bin/" + (Debugging.IsDebugBuild ? "Debug" : "Release") + "/ArchiSteamFarm.exe";
-				if (!File.Exists(ASF)) {
-					Logging.LogGenericError("ASF binary could not be found!");
-					Environment.Exit(1);
-				}
-			}
-
-			proc = new ServerProcess(ASF, "--server", textBox2);
-			proc.Start();
 		}
 
 
 		protected override void OnFormClosing(FormClosingEventArgs e) {
-			proc.Stop();
+            if(proc !=null)
+			    proc.Stop();
 			base.OnFormClosing(e);
 		}
 
@@ -89,13 +78,43 @@ namespace GUI {
 		private void Form1_Load(object sender, System.EventArgs e) {
 			this.Resize += new System.EventHandler(this.Form1_Resize);
 			textBox2.ScrollBars = ScrollBars.Vertical;
-            ASFGUI.Icon = new System.Drawing.Icon("cirno.ico");
+            System.Reflection.Assembly myAssembly = System.Reflection.Assembly.GetExecutingAssembly();
+            Stream myStream = myAssembly.GetManifestResourceStream("GUI.cirno.ico");
+            ASFGUI.Icon = new System.Drawing.Icon(myStream);
             textBox1.ScrollBars = ScrollBars.Vertical;
 			checkBox4.Checked = true;
 			textBox3.Text = "http://localhost:1242/ASF";
 			URL = "http://localhost:1242/ASF";
 			textBox2.Anchor = (AnchorStyles.Right | AnchorStyles.Left);
-		}
+            textBox2.AppendText("For Support see here: " + supportThread+"\n");
+            string message = "This GUI is in beta (or rather alpha)!\nIt needs to run as admin and steamOwnerID has to be set ('ASF --server' requires that)\nFor now there is a different SG thread and a different repo for Problems with the GUI.\nSee "+supportThread+ "\nArchi has nothing to do with it, so don't bother him, bother me ;->\nUse this only if you understand that and are willing to maybe experience bugs!\nUse it?";
+            string caption = "Disclaimer - read carefully";
+            MessageBoxButtons buttons = MessageBoxButtons.YesNo;
+            DialogResult result;
+
+            result = MessageBox.Show(message, caption, buttons);
+
+            if (result == System.Windows.Forms.DialogResult.No)
+            {
+                this.Close();
+                Environment.Exit(0);
+
+            }
+            // So either the ASF.exe is in the same directory, or we assume development environment.
+            string ASF = "ASF.exe";
+            if (!File.Exists(ASF))
+            {
+                ASF = "../../../ArchiSteamFarm/bin/" + (Debugging.IsDebugBuild ? "Debug" : "Release") + "/ArchiSteamFarm.exe";
+                if (!File.Exists(ASF))
+                {
+                    Logging.LogGenericError("ASF binary could not be found!");
+                    Environment.Exit(1);
+                }
+            }
+
+            proc = new ServerProcess(ASF, "--server", textBox2);
+            proc.Start();
+        }
 		/**
          * Minimize to tray instead of taskbar
          */
