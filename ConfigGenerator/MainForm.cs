@@ -26,37 +26,40 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
+using ArchiSteamFarm;
 
 namespace ConfigGenerator {
-	public partial class MainForm : Form {
+	internal sealed partial class MainForm : Form {
 		private const byte ReservedTabs = 3;
 
-		private readonly TabPage NewTab = new TabPage { Text = "+" };
-		private readonly TabPage RemoveTab = new TabPage { Text = "-" };
-		private readonly TabPage RenameTab = new TabPage { Text = "~" };
+		private readonly TabPage NewTab = new TabPage { Text = @"+" };
+		private readonly TabPage RemoveTab = new TabPage { Text = @"-" };
+		private readonly TabPage RenameTab = new TabPage { Text = @"~" };
 
 		private ConfigPage ASFTab;
 		private TabPage OldTab;
 
-		public MainForm() {
+		internal MainForm() {
 			InitializeComponent();
 		}
 
-		private void MainForm_Load(object sender, EventArgs e) {
-			if (sender == null || e == null) {
+		private void MainForm_Load(object sender, EventArgs args) {
+			if ((sender == null) || (args == null)) {
+				Logging.LogNullError(nameof(sender) + " || " + nameof(args));
 				return;
 			}
 
-			ASFTab = new ConfigPage(GlobalConfig.Load(Path.Combine(Program.ConfigDirectory, Program.GlobalConfigFile)));
+			ASFTab = new ConfigPage(GlobalConfig.Load(Path.Combine(SharedInfo.ConfigDirectory, SharedInfo.GlobalConfigFileName)));
 
 			MainTab.TabPages.Add(ASFTab);
 
-			foreach (var configFile in Directory.EnumerateFiles(Program.ConfigDirectory, "*.json")) {
+			foreach (string configFile in Directory.EnumerateFiles(SharedInfo.ConfigDirectory, "*.json")) {
 				string botName = Path.GetFileNameWithoutExtension(configFile);
 				switch (botName) {
-					case Program.ASF:
+					case SharedInfo.ASF:
 					case "example":
 					case "minimal":
 						continue;
@@ -70,12 +73,13 @@ namespace ConfigGenerator {
 			Tutorial.OnAction(Tutorial.EPhase.Start);
 		}
 
-		private void MainTab_Selected(object sender, TabControlEventArgs e) {
-			if (sender == null || e == null) {
+		private void MainTab_Selected(object sender, TabControlEventArgs args) {
+			if ((sender == null) || (args == null)) {
+				Logging.LogNullError(nameof(sender) + " || " + nameof(args));
 				return;
 			}
 
-			if (e.TabPage == RemoveTab) {
+			if (args.TabPage == RemoveTab) {
 				ConfigPage configPage = OldTab as ConfigPage;
 				if (configPage == null) {
 					MainTab.SelectedIndex = -1;
@@ -84,7 +88,7 @@ namespace ConfigGenerator {
 
 				if (configPage == ASFTab) {
 					MainTab.SelectedTab = ASFTab;
-					Logging.LogGenericError("You can't remove global config!");
+					Logging.LogGenericErrorWithoutStacktrace("You can't remove global config!");
 					return;
 				}
 
@@ -97,7 +101,7 @@ namespace ConfigGenerator {
 				MainTab.SelectedIndex = 0;
 				configPage.ASFConfig.Remove();
 				MainTab.TabPages.Remove(configPage);
-			} else if (e.TabPage == RenameTab) {
+			} else if (args.TabPage == RenameTab) {
 				ConfigPage configPage = OldTab as ConfigPage;
 				if (configPage == null) {
 					MainTab.SelectedIndex = -1;
@@ -106,7 +110,7 @@ namespace ConfigGenerator {
 
 				if (configPage == ASFTab) {
 					MainTab.SelectedTab = ASFTab;
-					Logging.LogGenericError("You can't rename global config!");
+					Logging.LogGenericErrorWithoutStacktrace("You can't rename global config!");
 					return;
 				}
 
@@ -118,7 +122,7 @@ namespace ConfigGenerator {
 				}
 
 				if (string.IsNullOrEmpty(input)) {
-					Logging.LogGenericError("Your bot name is empty!");
+					Logging.LogGenericErrorWithoutStacktrace("Your bot name is empty!");
 					return;
 				}
 
@@ -127,7 +131,7 @@ namespace ConfigGenerator {
 
 				configPage.ASFConfig.Rename(input);
 				configPage.RefreshText();
-			} else if (e.TabPage == NewTab) {
+			} else if (args.TabPage == NewTab) {
 				ConfigPage configPage = OldTab as ConfigPage;
 				if (configPage == null) {
 					MainTab.SelectedIndex = -1;
@@ -144,55 +148,69 @@ namespace ConfigGenerator {
 				}
 
 				if (string.IsNullOrEmpty(input)) {
-					Logging.LogGenericError("Your bot name is empty!");
+					Logging.LogGenericErrorWithoutStacktrace("Your bot name is empty!");
 					return;
 				}
 
 				// Get rid of any potential whitespaces in bot name
 				input = Regex.Replace(input, @"\s+", "");
 
-				foreach (ASFConfig config in ASFConfig.ASFConfigs) {
-					if (Path.GetFileNameWithoutExtension(config.FilePath).Equals(input)) {
-						Logging.LogGenericError("Bot with such name exists already!");
-						return;
-					}
+				if (string.IsNullOrEmpty(input)) {
+					Logging.LogGenericErrorWithoutStacktrace("Your bot name is empty!");
+					return;
 				}
 
-				input = Path.Combine(Program.ConfigDirectory, input + ".json");
+				switch (input) {
+					case SharedInfo.ASF:
+					case "example":
+					case "minimal":
+						Logging.LogGenericErrorWithoutStacktrace("This name is reserved!");
+						return;
+				}
+
+				if (ASFConfig.ASFConfigs.Select(config => Path.GetFileNameWithoutExtension(config.FilePath)).Any(fileNameWithoutExtension => (fileNameWithoutExtension == null) || fileNameWithoutExtension.Equals(input))) {
+					Logging.LogGenericErrorWithoutStacktrace("Bot with such name exists already!");
+					return;
+				}
+
+				input = Path.Combine(SharedInfo.ConfigDirectory, input + ".json");
 
 				ConfigPage newConfigPage = new ConfigPage(BotConfig.Load(input));
 				MainTab.TabPages.Insert(MainTab.TabPages.Count - ReservedTabs, newConfigPage);
 				MainTab.SelectedTab = newConfigPage;
 				Tutorial.OnAction(Tutorial.EPhase.BotNicknameFinished);
-			} else if (e.TabPage == ASFTab) {
+			} else if (args.TabPage == ASFTab) {
 				Tutorial.OnAction(Tutorial.EPhase.GlobalConfigOpened);
 			}
 		}
 
-		private void MainTab_Deselecting(object sender, TabControlCancelEventArgs e) {
-			if (sender == null || e == null) {
+		private void MainTab_Deselecting(object sender, TabControlCancelEventArgs args) {
+			if ((sender == null) || (args == null)) {
+				Logging.LogNullError(nameof(sender) + " || " + nameof(args));
 				return;
 			}
 
-			OldTab = e.TabPage;
+			OldTab = args.TabPage;
 		}
 
-		private void MainForm_Shown(object sender, EventArgs e) {
-			if (sender == null || e == null) {
+		private void MainForm_Shown(object sender, EventArgs args) {
+			if ((sender == null) || (args == null)) {
+				Logging.LogNullError(nameof(sender) + " || " + nameof(args));
 				return;
 			}
 
 			Tutorial.OnAction(Tutorial.EPhase.Shown);
 		}
 
-		private void MainForm_HelpButtonClicked(object sender, CancelEventArgs e) {
-			if (sender == null || e == null) {
+		private void MainForm_HelpButtonClicked(object sender, CancelEventArgs args) {
+			if ((sender == null) || (args == null)) {
+				Logging.LogNullError(nameof(sender) + " || " + nameof(args));
 				return;
 			}
 
-			e.Cancel = true;
+			args.Cancel = true;
 			Tutorial.OnAction(Tutorial.EPhase.Help);
-			Process.Start("https://github.com/JustArchi/ArchiSteamFarm/wiki/Configuration");
+			Process.Start("https://github.com/" + SharedInfo.GithubRepo + "/wiki/Configuration");
 			Tutorial.OnAction(Tutorial.EPhase.HelpFinished);
 		}
 	}

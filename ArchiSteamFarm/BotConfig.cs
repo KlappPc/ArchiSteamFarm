@@ -25,92 +25,159 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Linq;
 
 namespace ArchiSteamFarm {
+	[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
+	[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
+	[SuppressMessage("ReSharper", "ConvertToConstant.Local")]
+	[SuppressMessage("ReSharper", "ConvertToConstant.Global")]
 	internal sealed class BotConfig {
-		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool Enabled { get; private set; } = false;
+		internal enum EFarmingOrder : byte {
+			Unordered,
+			AppIDsAscending,
+			AppIDsDescending,
+			CardDropsAscending,
+			CardDropsDescending,
+			HoursAscending,
+			HoursDescending,
+			NamesAscending,
+			NamesDescending
+		}
+
+		[Flags]
+		internal enum ETradingPreferences : byte {
+			[SuppressMessage("ReSharper", "UnusedMember.Global")]
+			None = 0,
+			AcceptDonations = 1,
+			SteamTradeMatcher = 2,
+			MatchEverything = 4
+		}
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool StartOnLaunch { get; private set; } = true;
+		internal readonly bool Enabled = false;
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		internal readonly bool Paused = false;
 
 		[JsonProperty]
-		internal string SteamLogin { get; set; } = null;
+		internal string SteamLogin { get; set; }
 
 		[JsonProperty]
-		internal string SteamPassword { get; set; } = null;
+		internal string SteamPassword { get; set; }
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		internal readonly CryptoHelper.ECryptoMethod PasswordFormat = CryptoHelper.ECryptoMethod.PlainText;
 
 		[JsonProperty]
 		internal string SteamParentalPIN { get; set; } = "0";
 
 		[JsonProperty]
-		internal string SteamApiKey { get; private set; } = null;
+		internal readonly string SteamApiKey = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal ulong SteamMasterID { get; private set; } = 0;
+		internal readonly ulong SteamMasterID = 0;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal ulong SteamMasterClanID { get; private set; } = 0;
+		internal readonly ulong SteamMasterClanID = 0;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool CardDropsRestricted { get; private set; } = false;
+		internal readonly bool CardDropsRestricted = true;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool DismissInventoryNotifications { get; private set; } = true;
+		internal readonly bool DismissInventoryNotifications = true;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool FarmOffline { get; private set; } = false;
+		internal readonly EFarmingOrder FarmingOrder = EFarmingOrder.Unordered;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool HandleOfflineMessages { get; private set; } = false;
+		internal readonly bool FarmOffline = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool AcceptGifts { get; private set; } = false;
+		internal readonly bool HandleOfflineMessages = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool ForwardKeysToOtherBots { get; private set; } = false;
+		internal readonly bool AcceptGifts = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool DistributeKeys { get; private set; } = false;
+		internal readonly bool IsBotAccount = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool UseAsfAsMobileAuthenticator { get; private set; } = false;
+		internal readonly bool ForwardKeysToOtherBots = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool ShutdownOnFarmingFinished { get; private set; } = false;
+		internal readonly bool DistributeKeys = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal bool SendOnFarmingFinished { get; private set; } = false;
+		internal readonly bool ShutdownOnFarmingFinished = false;
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		internal readonly bool SendOnFarmingFinished = false;
 
 		[JsonProperty]
-		internal string SteamTradeToken { get; private set; } = null;
+		internal readonly string SteamTradeToken = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal byte SendTradePeriod { get; private set; } = 0;
+		internal readonly byte SendTradePeriod = 0;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal byte AcceptConfirmationsPeriod { get; private set; } = 0;
+		internal readonly ETradingPreferences TradingPreferences = ETradingPreferences.AcceptDonations;
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		internal readonly byte AcceptConfirmationsPeriod = 0;
 
 		[JsonProperty]
-		internal string CustomGamePlayedWhileIdle { get; private set; } = null;
+		internal readonly string CustomGamePlayedWhileFarming = null;
+
+		[JsonProperty]
+		internal readonly string CustomGamePlayedWhileIdle = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal HashSet<uint> GamesPlayedWhileIdle { get; private set; } = new HashSet<uint>() { 0 };
-
+		internal readonly HashSet<uint> GamesPlayedWhileIdle = new HashSet<uint>();
 
 		internal static BotConfig Load(string filePath) {
-			if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) {
+			if (string.IsNullOrEmpty(filePath)) {
+				ASF.ArchiLogger.LogNullError(nameof(filePath));
+				return null;
+			}
+
+			if (!File.Exists(filePath)) {
 				return null;
 			}
 
 			BotConfig botConfig;
+
 			try {
 				botConfig = JsonConvert.DeserializeObject<BotConfig>(File.ReadAllText(filePath));
 			} catch (Exception e) {
-				Logging.LogGenericException(e);
+				ASF.ArchiLogger.LogGenericException(e);
 				return null;
 			}
+
+			if (botConfig == null) {
+				ASF.ArchiLogger.LogNullError(nameof(botConfig));
+				return null;
+			}
+
+			// Support encrypted passwords
+			if ((botConfig.PasswordFormat != CryptoHelper.ECryptoMethod.PlainText) && !string.IsNullOrEmpty(botConfig.SteamPassword)) {
+				// In worst case password will result in null, which will have to be corrected by user during runtime
+				botConfig.SteamPassword = CryptoHelper.Decrypt(botConfig.PasswordFormat, botConfig.SteamPassword);
+			}
+
+			// User might not know what he's doing
+			// Ensure that he can't screw core ASF variables
+			if (botConfig.GamesPlayedWhileIdle.Count <= CardsFarmer.MaxGamesPlayedConcurrently) {
+				return botConfig;
+			}
+
+			ASF.ArchiLogger.LogGenericWarning("Playing more than " + CardsFarmer.MaxGamesPlayedConcurrently + " games concurrently is not possible, only first " + CardsFarmer.MaxGamesPlayedConcurrently + " entries from GamesPlayedWhileIdle will be used");
+
+			HashSet<uint> validGames = new HashSet<uint>(botConfig.GamesPlayedWhileIdle.Take(CardsFarmer.MaxGamesPlayedConcurrently));
+			botConfig.GamesPlayedWhileIdle.IntersectWith(validGames);
+			botConfig.GamesPlayedWhileIdle.TrimExcess();
 
 			return botConfig;
 		}

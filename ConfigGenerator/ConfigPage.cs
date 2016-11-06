@@ -22,16 +22,17 @@
 
 */
 
+using System;
 using System.IO;
 using System.Windows.Forms;
 
 namespace ConfigGenerator {
-	internal class ConfigPage : TabPage {
+	internal sealed class ConfigPage : TabPage {
 		internal readonly ASFConfig ASFConfig;
 
 		internal ConfigPage(ASFConfig config) {
 			if (config == null) {
-				return;
+				throw new ArgumentNullException(nameof(config));
 			}
 
 			ASFConfig = config;
@@ -42,8 +43,6 @@ namespace ConfigGenerator {
 			Controls.Add(enhancedPropertyGrid);
 		}
 
-		internal void RefreshText() {
-			Text = Path.GetFileNameWithoutExtension(ASFConfig.FilePath);
-		}
+		internal void RefreshText() => Text = Path.GetFileNameWithoutExtension(ASFConfig.FilePath);
 	}
 }

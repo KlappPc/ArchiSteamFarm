@@ -2,15 +2,15 @@
 set -eu
 
 BUILD="Release"
+AOT=0
 CLEAN=0
 
-MONO_ARGS=("--aot" "--llvm" "--server" "-O=all")
 XBUILD_ARGS=("/nologo")
 BINARIES=("ArchiSteamFarm/bin/Release/ArchiSteamFarm.exe")
 SOLUTION="ArchiSteamFarm.sln"
 
 PRINT_USAGE() {
-	echo "Usage: $0 [--clean] [debug/release]"
+	echo "Usage: $0 [--clean] [--aot] [debug/release]"
 	exit 1
 }
 
@@ -18,6 +18,7 @@ for ARG in "$@"; do
 	case "$ARG" in
 		release|Release) BUILD="Release" ;;
 		debug|Debug) BUILD="Debug" ;;
+		--aot) AOT=1 ;;
 		--clean) CLEAN=1 ;;
 		*) PRINT_USAGE
 	esac
@@ -27,8 +28,14 @@ XBUILD_ARGS+=("/p:Configuration=$BUILD")
 
 cd "$(dirname "$(readlink -f "$0")")"
 
+if [[ -f "mono_envsetup.sh" ]]; then
+	set +u
+	source "mono_envsetup.sh"
+	set -u
+fi
+
 if [[ -d ".git" ]] && hash git &>/dev/null; then
-	git pull
+	git pull || true
 fi
 
 if [[ ! -f "$SOLUTION" ]]; then
@@ -37,7 +44,7 @@ if [[ ! -f "$SOLUTION" ]]; then
 fi
 
 if hash nuget &>/dev/null; then
-	nuget restore "$SOLUTION"
+	nuget restore "$SOLUTION" || true
 fi
 
 if [[ "$CLEAN" -eq 1 ]]; then
@@ -51,14 +58,14 @@ if [[ ! -f "${BINARIES[0]}" ]]; then
 	echo "ERROR: ${BINARIES[0]} binary could not be found!"
 fi
 
-# If it's release build, use Mono AOT for output binaries
-if [[ "$BUILD" = "Release" ]]; then
+# Use Mono AOT for output binaries if needed
+if [[ "$AOT" -eq 1 && "$BUILD" = "Release" ]]; then
 	for BINARY in "${BINARIES[@]}"; do
 		if [[ ! -f "$BINARY" ]]; then
 			continue
 		fi
 
-		mono "${MONO_ARGS[@]}" "$BINARY"
+		mono --aot "$BINARY"
 	done
 fi
 

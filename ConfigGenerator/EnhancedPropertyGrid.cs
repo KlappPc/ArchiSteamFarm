@@ -31,7 +31,7 @@ namespace ConfigGenerator {
 
 		internal EnhancedPropertyGrid(ASFConfig config) {
 			if (config == null) {
-				throw new ArgumentNullException("config");
+				throw new ArgumentNullException(nameof(config));
 			}
 
 			ASFConfig = config;
@@ -43,39 +43,45 @@ namespace ConfigGenerator {
 			ToolbarVisible = false;
 		}
 
-		protected override void OnPropertyValueChanged(PropertyValueChangedEventArgs e) {
-			if (e == null) {
+		protected override void OnPropertyValueChanged(PropertyValueChangedEventArgs args) {
+			if (args == null) {
+				Logging.LogNullError(nameof(args));
 				return;
 			}
 
-			base.OnPropertyValueChanged(e);
+			base.OnPropertyValueChanged(args);
 			ASFConfig.Save();
 
 			BotConfig botConfig = ASFConfig as BotConfig;
 			if (botConfig != null) {
-				if (botConfig.Enabled) {
-					Tutorial.OnAction(Tutorial.EPhase.BotEnabled);
-					if (!string.IsNullOrEmpty(botConfig.SteamLogin) && !string.IsNullOrEmpty(botConfig.SteamPassword)) {
-						Tutorial.OnAction(Tutorial.EPhase.BotReady);
-					}
+				if (!botConfig.Enabled) {
+					return;
+				}
+
+				Tutorial.OnAction(Tutorial.EPhase.BotEnabled);
+				if (!string.IsNullOrEmpty(botConfig.SteamLogin) && !string.IsNullOrEmpty(botConfig.SteamPassword)) {
+					Tutorial.OnAction(Tutorial.EPhase.BotReady);
 				}
 				return;
 			}
 
 			GlobalConfig globalConfig = ASFConfig as GlobalConfig;
-			if (globalConfig != null) {
-				if (globalConfig.SteamOwnerID != 0) {
-					Tutorial.OnAction(Tutorial.EPhase.GlobalConfigReady);
-				}
-			}
-		}
-
-		protected override void OnGotFocus(EventArgs e) {
-			if (e == null) {
+			if (globalConfig == null) {
 				return;
 			}
 
-			base.OnGotFocus(e);
+			if (globalConfig.SteamOwnerID != 0) {
+				Tutorial.OnAction(Tutorial.EPhase.GlobalConfigReady);
+			}
+		}
+
+		protected override void OnGotFocus(EventArgs args) {
+			if (args == null) {
+				Logging.LogNullError(nameof(args));
+				return;
+			}
+
+			base.OnGotFocus(args);
 			ASFConfig.Save();
 		}
 	}

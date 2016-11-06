@@ -23,71 +23,78 @@
 */
 
 using System;
-using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
+using ConfigGenerator.Properties;
 
 namespace ConfigGenerator {
 	internal static class Logging {
-		internal static void LogGenericInfo(string message) {
+		internal static void LogGenericInfoWithoutStacktrace(string message) {
 			if (string.IsNullOrEmpty(message)) {
+				LogNullError(nameof(message));
 				return;
 			}
 
-			MessageBox.Show(message, "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+			MessageBox.Show(message, Resources.Information, MessageBoxButtons.OK, MessageBoxIcon.Information);
 		}
 
-		internal static void LogGenericWTF(string message, [CallerMemberName] string previousMethodName = "") {
+		internal static void LogGenericErrorWithoutStacktrace(string message) {
 			if (string.IsNullOrEmpty(message)) {
+				LogNullError(nameof(message));
 				return;
 			}
 
-			MessageBox.Show(previousMethodName + "() " + message, "WTF", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			MessageBox.Show(message, Resources.Error, MessageBoxButtons.OK, MessageBoxIcon.Error);
 		}
 
-		internal static void LogGenericError(string message, [CallerMemberName] string previousMethodName = "") {
+		internal static void LogGenericException(Exception exception, [CallerMemberName] string previousMethodName = null) {
+			while (true) {
+				if (exception == null) {
+					LogNullError(nameof(exception));
+					return;
+				}
+
+				MessageBox.Show(previousMethodName + @"() " + exception.Message + Environment.NewLine + exception.StackTrace, Resources.Exception, MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+				if (exception.InnerException != null) {
+					exception = exception.InnerException;
+					continue;
+				}
+
+				break;
+			}
+		}
+
+		internal static void LogGenericWarning(string message, [CallerMemberName] string previousMethodName = null) {
 			if (string.IsNullOrEmpty(message)) {
+				LogNullError(nameof(message));
 				return;
 			}
 
-			MessageBox.Show(previousMethodName + "() " + message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			MessageBox.Show(previousMethodName + @"() " + message, Resources.Warning, MessageBoxButtons.OK, MessageBoxIcon.Warning);
 		}
 
-		internal static void LogGenericException(Exception exception, [CallerMemberName] string previousMethodName = "") {
-			if (exception == null) {
-				return;
-			}
+		[SuppressMessage("ReSharper", "ExplicitCallerInfoArgument")]
+		internal static void LogNullError(string nullObjectName, [CallerMemberName] string previousMethodName = null) {
+			while (true) {
+				if (string.IsNullOrEmpty(nullObjectName)) {
+					nullObjectName = nameof(nullObjectName);
+					continue;
+				}
 
-			MessageBox.Show(previousMethodName + "() " + exception.Message + Environment.NewLine + exception.StackTrace, "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
-
-			if (exception.InnerException != null) {
-				LogGenericException(exception.InnerException, previousMethodName);
+				LogGenericError(nullObjectName + " is null!", previousMethodName);
+				break;
 			}
 		}
 
-		internal static void LogGenericWarning(string message, [CallerMemberName] string previousMethodName = "") {
+		private static void LogGenericError(string message, [CallerMemberName] string previousMethodName = null) {
 			if (string.IsNullOrEmpty(message)) {
+				LogNullError(nameof(message));
 				return;
 			}
 
-			MessageBox.Show(previousMethodName + "() " + message, "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-		}
-
-		internal static void LogNullError(string nullObjectName, [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(nullObjectName)) {
-				return;
-			}
-
-			LogGenericError(nullObjectName + " is null!", previousMethodName);
-		}
-
-		[Conditional("DEBUG")]
-		internal static void LogGenericDebug(string message, [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
-				return;
-			}
-
-			MessageBox.Show(previousMethodName + "() " + message, "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
+			LogGenericErrorWithoutStacktrace(previousMethodName + @"() " + message);
 		}
 	}
 }

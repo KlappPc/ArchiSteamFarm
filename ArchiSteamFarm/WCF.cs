@@ -26,24 +26,29 @@ using System;
 using System.Linq;
 using System.ServiceModel;
 using System.ServiceModel.Channels;
+using System.ServiceModel.Description;
 
 namespace ArchiSteamFarm {
 	[ServiceContract]
 	internal interface IWCF {
 		[OperationContract]
+		string GetStatus();
+
+		[OperationContract]
 		string HandleCommand(string input);
 	}
 
-	internal sealed class WCF : IWCF {
-
+	internal sealed class WCF : IWCF, IDisposable {
 		private static string URL = "http://localhost:1242/ASF";
 
 		private ServiceHost ServiceHost;
 		private Client Client;
 
+		internal bool IsServerRunning => ServiceHost != null;
+
 		internal static void Init() {
 			if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHostname)) {
-				Program.GlobalConfig.WCFHostname = Program.GetUserInput(Program.EUserInputType.WCFHostname);
+				Program.GlobalConfig.WCFHostname = Program.GetUserInput(SharedInfo.EUserInputType.WCFHostname);
 				if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHostname)) {
 					return;
 				}
@@ -52,8 +57,33 @@ namespace ArchiSteamFarm {
 			URL = "http://" + Program.GlobalConfig.WCFHostname + ":" + Program.GlobalConfig.WCFPort + "/ASF";
 		}
 
-		internal bool IsServerRunning() {
-			return ServiceHost != null;
+		public string HandleCommand(string input) {
+			if (string.IsNullOrEmpty(input)) {
+				ASF.ArchiLogger.LogNullError(nameof(input));
+				return null;
+			}
+
+			if (Program.GlobalConfig.SteamOwnerID == 0) {
+				return "Refusing to handle request because SteamOwnerID is not set!";
+			}
+
+			Bot bot = Bot.Bots.Values.FirstOrDefault();
+			if (bot == null) {
+				return "ERROR: No bots are enabled!";
+			}
+
+			string command = "!" + input;
+			string output = bot.Response(Program.GlobalConfig.SteamOwnerID, command).Result; // TODO: This should be asynchronous
+
+			ASF.ArchiLogger.LogGenericInfo("Answered to command: " + input + " with: " + output);
+			return output;
+		}
+
+		public string GetStatus() => Program.GlobalConfig.SteamOwnerID == 0 ? "{}" : Bot.GetAPIStatus();
+
+		public void Dispose() {
+			StopClient();
+			StopServer();
 		}
 
 		internal void StartServer() {
@@ -61,22 +91,25 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			Logging.LogGenericInfo("Starting WCF server...");
-			ServiceHost = new ServiceHost(typeof(WCF));
-			ServiceHost.AddServiceEndpoint(typeof(IWCF), new BasicHttpBinding(), URL);
+			ASF.ArchiLogger.LogGenericInfo("Starting WCF server...");
 
 			try {
+				ServiceHost = new ServiceHost(typeof(WCF), new Uri(URL));
+
+				ServiceHost.Description.Behaviors.Add(new ServiceMetadataBehavior {
+					HttpGetEnabled = true
+				});
+
+				ServiceHost.AddServiceEndpoint(ServiceMetadataBehavior.MexContractName, MetadataExchangeBindings.CreateMexHttpBinding(), "mex");
+				ServiceHost.AddServiceEndpoint(typeof(IWCF), new BasicHttpBinding(), string.Empty);
+
 				ServiceHost.Open();
-			} catch (AddressAccessDeniedException) {
-				Logging.LogGenericWarning("WCF service could not be started because of AddressAccessDeniedException");
-				Logging.LogGenericWarning("If you want to use WCF service provided by ASF, consider starting ASF as administrator, or giving proper permissions");
-				return;
 			} catch (Exception e) {
-				Logging.LogGenericException(e);
+				ASF.ArchiLogger.LogGenericException(e);
 				return;
 			}
 
-			Logging.LogGenericInfo("WCF server ready!");
+			ASF.ArchiLogger.LogGenericInfo("WCF server ready!");
 		}
 
 		internal void StopServer() {
@@ -84,11 +117,23 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			ServiceHost.Close();
+			if (ServiceHost.State != CommunicationState.Closed) {
+				try {
+					ServiceHost.Close();
+				} catch (Exception e) {
+					ASF.ArchiLogger.LogGenericException(e);
+				}
+			}
+
 			ServiceHost = null;
 		}
 
 		internal string SendCommand(string input) {
+			if (string.IsNullOrEmpty(input)) {
+				ASF.ArchiLogger.LogNullError(nameof(input));
+				return null;
+			}
+
 			if (Client == null) {
 				Client = new Client(new BasicHttpBinding(), new EndpointAddress(URL));
 			}
@@ -96,48 +141,32 @@ namespace ArchiSteamFarm {
 			return Client.HandleCommand(input);
 		}
 
-		public string HandleCommand(string input) {
-			if (string.IsNullOrEmpty(input)) {
-				return null;
+		private void StopClient() {
+			if (Client == null) {
+				return;
 			}
 
-			string[] args = input.Split(' ');
-
-			string botName;
-
-			if (args.Length > 1) { // If we have args[1] provided, use given botName
-				botName = args[1];
-			} else { // If not, just pick first one
-				botName = Bot.Bots.Keys.FirstOrDefault();
+			if (Client.State != CommunicationState.Closed) {
+				Client.Close();
 			}
 
-			if (string.IsNullOrEmpty(botName)) {
-				return "ERROR: Invalid botName: " + botName;
-			}
-
-			Bot bot;
-			if (!Bot.Bots.TryGetValue(botName, out bot)) {
-				return "ERROR: Couldn't find any bot named: " + botName;
-			}
-
-			Logging.LogGenericInfo("Received command: " + input);
-
-			string command = '!' + input;
-			string output = bot.Response(Program.GlobalConfig.SteamOwnerID, command).Result; // TODO: This should be asynchronous
-
-			Logging.LogGenericInfo("Answered to command: " + input + " with: " + output);
-			return output;
+			Client = null;
 		}
 	}
 
-	internal sealed class Client : ClientBase<IWCF>, IWCF {
+	internal sealed class Client : ClientBase<IWCF> {
 		internal Client(Binding binding, EndpointAddress address) : base(binding, address) { }
 
-		public string HandleCommand(string input) {
+		internal string HandleCommand(string input) {
+			if (string.IsNullOrEmpty(input)) {
+				ASF.ArchiLogger.LogNullError(nameof(input));
+				return null;
+			}
+
 			try {
 				return Channel.HandleCommand(input);
 			} catch (Exception e) {
-				Logging.LogGenericException(e);
+				ASF.ArchiLogger.LogGenericException(e);
 				return null;
 			}
 		}

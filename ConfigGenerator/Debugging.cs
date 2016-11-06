@@ -22,14 +22,16 @@
 
 */
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace ConfigGenerator {
 	internal static class Debugging {
 #if DEBUG
+		[SuppressMessage("ReSharper", "ConvertToConstant.Global")]
 		internal static readonly bool IsDebugBuild = true;
 #else
+		[SuppressMessage("ReSharper", "ConvertToConstant.Global")]
 		internal static readonly bool IsDebugBuild = false;
 #endif
-
-		internal static bool IsReleaseBuild => !IsDebugBuild;
 	}
 }

@@ -23,40 +23,26 @@
 */
 
 using SteamKit2;
-using System;
-using System.IO;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ArchiSteamFarm {
 	internal static class Debugging {
 #if DEBUG
+		[SuppressMessage("ReSharper", "ConvertToConstant.Global")]
 		internal static readonly bool IsDebugBuild = true;
 #else
+		[SuppressMessage("ReSharper", "ConvertToConstant.Global")]
 		internal static readonly bool IsDebugBuild = false;
 #endif
 
-		internal static bool IsReleaseBuild => !IsDebugBuild;
-
-		internal static bool NetHookAlreadyInitialized { get; set; } = false;
-
 		internal sealed class DebugListener : IDebugListener {
-			private readonly string FilePath;
-
-			internal DebugListener(string filePath) {
-				if (string.IsNullOrEmpty(filePath)) {
+			public void WriteLine(string category, string msg) {
+				if (string.IsNullOrEmpty(category) && string.IsNullOrEmpty(msg)) {
+					ASF.ArchiLogger.LogNullError(nameof(category) + " && " + nameof(msg));
 					return;
 				}
 
-				FilePath = filePath;
-			}
-
-			public void WriteLine(string category, string msg) {
-				lock (FilePath) {
-					try {
-						File.AppendAllText(FilePath, category + " | " + msg + Environment.NewLine);
-					} catch (Exception e) {
-						Logging.LogGenericException(e);
-					}
-				}
+				ASF.ArchiLogger.LogGenericDebug(category + " | " + msg);
 			}
 		}
 	}

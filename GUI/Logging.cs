@@ -22,72 +22,75 @@
 
 */
 
-using System;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-using System.Windows.Forms;
+using System.Linq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
+using NLog.Windows.Forms;
 
-namespace GUI {
+// ReSharper disable once CheckNamespace
+namespace ArchiSteamFarm {
 	internal static class Logging {
-		internal static void LogGenericInfo(string message) {
-			if (string.IsNullOrEmpty(message)) {
-				return;
+		private const string GeneralLayout = @"${date:format=yyyy-MM-dd HH\:mm\:ss} | ${level:uppercase=true} | ${logger} | ${message}${onexception:inner= | ${exception:format=toString,Data}}";
+
+		private static bool IsUsingCustomConfiguration;
+
+		internal static void InitCoreLoggers() {
+			if (LogManager.Configuration == null) {
+				LogManager.Configuration = new LoggingConfiguration();
+			} else {
+				// User provided custom NLog config, but we still need to define our own logger
+				IsUsingCustomConfiguration = true;
+				if (LogManager.Configuration.AllTargets.Any(target => target is MessageBoxTarget)) {
+					return;
+				}
 			}
 
-			MessageBox.Show(message, "Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
+			MessageBoxTarget messageBoxTarget = new MessageBoxTarget {
+				Name = "MessageBox",
+				Layout = GeneralLayout
+			};
+
+			LogManager.Configuration.AddTarget(messageBoxTarget);
+			LogManager.Configuration.LoggingRules.Add(new LoggingRule("*", LogLevel.Fatal, messageBoxTarget));
+			LogManager.ReconfigExistingLoggers();
 		}
 
-		internal static void LogGenericWTF(string message, [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
+		internal static void InitEnhancedLoggers() {
+			if (IsUsingCustomConfiguration) {
 				return;
 			}
 
-			MessageBox.Show(previousMethodName + "() " + message, "WTF", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			FileTarget fileTarget = new FileTarget("File") {
+				DeleteOldFileOnStartup = true,
+				FileName = SharedInfo.LogFile,
+				Layout = GeneralLayout
+			};
+
+			LogManager.Configuration.AddTarget(fileTarget);
+			LogManager.Configuration.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, fileTarget));
+
+			LogManager.ReconfigExistingLoggers();
 		}
 
-		internal static void LogGenericError(string message, [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
-				return;
-			}
+		internal static void InitFormLogger() {
+			RichTextBoxTarget formControlTarget = new RichTextBoxTarget {
+				AutoScroll = true,
+				ControlName = "LogTextBox",
+				FormName = "MainForm",
+				Layout = GeneralLayout,
+				MaxLines = byte.MaxValue,
+				Name = "RichTextBox"
+			};
 
-			MessageBox.Show(previousMethodName + "() " + message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-		}
+			formControlTarget.RowColoringRules.Add(new RichTextBoxRowColoringRule("level >= LogLevel.Error", "Red", "Black"));
+			formControlTarget.RowColoringRules.Add(new RichTextBoxRowColoringRule("level >= LogLevel.Warn", "Yellow", "Black"));
 
-		internal static void LogGenericException(Exception exception, [CallerMemberName] string previousMethodName = "") {
-			if (exception == null) {
-				return;
-			}
 
-			MessageBox.Show(previousMethodName + "() " + exception.Message + Environment.NewLine + exception.StackTrace, "Exception", MessageBoxButtons.OK, MessageBoxIcon.Error);
+			LogManager.Configuration.AddTarget(formControlTarget);
+			LogManager.Configuration.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, formControlTarget));
 
-			if (exception.InnerException != null) {
-				LogGenericException(exception.InnerException, previousMethodName);
-			}
-		}
-
-		internal static void LogGenericWarning(string message, [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
-				return;
-			}
-
-			MessageBox.Show(previousMethodName + "() " + message, "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-		}
-
-		internal static void LogNullError(string nullObjectName, [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(nullObjectName)) {
-				return;
-			}
-
-			LogGenericError(nullObjectName + " is null!", previousMethodName);
-		}
-
-		[Conditional("DEBUG")]
-		internal static void LogGenericDebug(string message, [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
-				return;
-			}
-
-			MessageBox.Show(previousMethodName + "() " + message, "Debug", MessageBoxButtons.OK, MessageBoxIcon.Information);
+			LogManager.ReconfigExistingLoggers();
 		}
 	}
 }

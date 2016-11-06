@@ -26,12 +26,15 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using ArchiSteamFarm;
 
 namespace ConfigGenerator {
-	internal class ASFConfig {
+	internal abstract class ASFConfig {
 		internal static readonly HashSet<ASFConfig> ASFConfigs = new HashSet<ASFConfig>();
 
 		internal string FilePath { get; set; }
+
+		private readonly object FileLock = new object();
 
 		protected ASFConfig() {
 			ASFConfigs.Add(this);
@@ -39,14 +42,14 @@ namespace ConfigGenerator {
 
 		protected ASFConfig(string filePath) : this() {
 			if (string.IsNullOrEmpty(filePath)) {
-				throw new ArgumentNullException("filePath");
+				throw new ArgumentNullException(nameof(filePath));
 			}
 
 			FilePath = filePath;
 		}
 
-		internal virtual void Save() {
-			lock (FilePath) {
+		internal void Save() {
+			lock (FileLock) {
 				try {
 					File.WriteAllText(FilePath, JsonConvert.SerializeObject(this, Formatting.Indented));
 				} catch (Exception e) {
@@ -55,10 +58,10 @@ namespace ConfigGenerator {
 			}
 		}
 
-		internal virtual void Remove() {
+		internal void Remove() {
 			string queryPath = Path.GetFileNameWithoutExtension(FilePath);
-			lock (FilePath) {
-				foreach (string botFile in Directory.EnumerateFiles(Program.ConfigDirectory, queryPath + ".*")) {
+			lock (FileLock) {
+				foreach (string botFile in Directory.EnumerateFiles(SharedInfo.ConfigDirectory, queryPath + ".*")) {
 					try {
 						File.Delete(botFile);
 					} catch (Exception e) {
@@ -66,24 +69,27 @@ namespace ConfigGenerator {
 					}
 				}
 			}
+
 			ASFConfigs.Remove(this);
 		}
 
-		internal virtual void Rename(string botName) {
+		internal void Rename(string botName) {
 			if (string.IsNullOrEmpty(botName)) {
+				Logging.LogNullError(nameof(botName));
 				return;
 			}
 
 			string queryPath = Path.GetFileNameWithoutExtension(FilePath);
-			lock (FilePath) {
-				foreach (string botFile in Directory.EnumerateFiles(Program.ConfigDirectory, queryPath + ".*")) {
+			lock (FileLock) {
+				foreach (string botFile in Directory.EnumerateFiles(SharedInfo.ConfigDirectory, queryPath + ".*")) {
 					try {
-						File.Move(botFile, Path.Combine(Program.ConfigDirectory, botName + Path.GetExtension(botFile)));
+						File.Move(botFile, Path.Combine(SharedInfo.ConfigDirectory, botName + Path.GetExtension(botFile)));
 					} catch (Exception e) {
 						Logging.LogGenericException(e);
 					}
 				}
-				FilePath = Path.Combine(Program.ConfigDirectory, botName + ".json");
+
+				FilePath = Path.Combine(SharedInfo.ConfigDirectory, botName + ".json");
 			}
 		}
 	}

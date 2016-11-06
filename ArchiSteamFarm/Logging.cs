@@ -22,116 +22,108 @@
 
 */
 
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Runtime.CompilerServices;
+using System.Linq;
+using NLog;
+using NLog.Config;
+using NLog.Targets;
 
 namespace ArchiSteamFarm {
 	internal static class Logging {
-		private static readonly object FileLock = new object();
+		private const string LayoutMessage = @"${logger}|${message}${onexception:inner= ${exception:format=toString,Data}}";
+		private const string GeneralLayout = @"${date:format=yyyy-MM-dd HH\:mm\:ss}|${processname}-${processid}|${level:uppercase=true}|" + LayoutMessage;
+		private const string EventLogLayout = LayoutMessage;
 
-		private static bool LogToFile;
+		private static readonly ConcurrentHashSet<LoggingRule> ConsoleLoggingRules = new ConcurrentHashSet<LoggingRule>();
 
-		internal static void Init() {
-			LogToFile = Program.GlobalConfig.LogToFile;
+		private static bool IsWaitingForUserInput;
 
-			if (LogToFile) {
-				lock (FileLock) {
-					try {
-						File.Delete(Program.LogFile);
-					} catch (Exception e) {
-						LogGenericException(e);
-					}
-				}
-			}
-		}
-
-		internal static void LogGenericWTF(string message, string botName = "Main", [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
+		internal static void InitLoggers() {
+			if (LogManager.Configuration != null) {
+				// User provided custom NLog config, or we have it set already, so don't override it
+				InitConsoleLoggers();
+				LogManager.ConfigurationChanged += OnConfigurationChanged;
 				return;
 			}
 
-			Log("[!!] WTF: " + previousMethodName + "() <" + botName + "> " + message + ", WTF?");
+			LoggingConfiguration config = new LoggingConfiguration();
+
+			ColoredConsoleTarget coloredConsoleTarget = new ColoredConsoleTarget("ColoredConsole") {
+				DetectConsoleAvailable = false,
+				Layout = GeneralLayout
+			};
+
+			config.AddTarget(coloredConsoleTarget);
+			config.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, coloredConsoleTarget));
+
+			if (Program.IsRunningAsService) {
+				EventLogTarget eventLogTarget = new EventLogTarget("EventLog") {
+					Layout = EventLogLayout,
+					Log = SharedInfo.EventLog,
+					Source = SharedInfo.EventLogSource
+				};
+
+				config.AddTarget(eventLogTarget);
+				config.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, eventLogTarget));
+			} else if (Program.Mode != Program.EMode.Client) {
+				FileTarget fileTarget = new FileTarget("File") {
+					DeleteOldFileOnStartup = true,
+					FileName = SharedInfo.LogFile,
+					Layout = GeneralLayout
+				};
+
+				config.AddTarget(fileTarget);
+				config.LoggingRules.Add(new LoggingRule("*", LogLevel.Debug, fileTarget));
+			}
+
+			LogManager.Configuration = config;
+			InitConsoleLoggers();
 		}
 
-		internal static void LogGenericError(string message, string botName = "Main", [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
+		internal static void OnUserInputStart() {
+			IsWaitingForUserInput = true;
+
+			if (ConsoleLoggingRules.Count == 0) {
 				return;
 			}
 
-			Log("[!!] ERROR: " + previousMethodName + "() <" + botName + "> " + message);
+			foreach (LoggingRule consoleLoggingRule in ConsoleLoggingRules) {
+				LogManager.Configuration.LoggingRules.Remove(consoleLoggingRule);
+			}
+
+			LogManager.ReconfigExistingLoggers();
 		}
 
-		internal static void LogGenericException(Exception exception, string botName = "Main", [CallerMemberName] string previousMethodName = "") {
-			if (exception == null) {
+		internal static void OnUserInputEnd() {
+			IsWaitingForUserInput = false;
+
+			if (ConsoleLoggingRules.Count == 0) {
 				return;
 			}
 
-			Log("[!] EXCEPTION: " + previousMethodName + "() <" + botName + "> " + exception.Message);
-			Log("[!] StackTrace:" + Environment.NewLine + exception.StackTrace);
+			foreach (LoggingRule consoleLoggingRule in ConsoleLoggingRules.Where(consoleLoggingRule => !LogManager.Configuration.LoggingRules.Contains(consoleLoggingRule))) {
+				LogManager.Configuration.LoggingRules.Add(consoleLoggingRule);
+			}
 
-			if (exception.InnerException != null) {
-				LogGenericException(exception.InnerException, botName, previousMethodName);
+			LogManager.ReconfigExistingLoggers();
+		}
+
+		private static void InitConsoleLoggers() {
+			ConsoleLoggingRules.Clear();
+			foreach (LoggingRule loggingRule in LogManager.Configuration.LoggingRules.Where(loggingRule => loggingRule.Targets.Any(target => target is ColoredConsoleTarget || target is ConsoleTarget))) {
+				ConsoleLoggingRules.Add(loggingRule);
 			}
 		}
 
-		internal static void LogGenericWarning(string message, string botName = "Main", [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
+		private static void OnConfigurationChanged(object sender, LoggingConfigurationChangedEventArgs e) {
+			if ((sender == null) || (e == null)) {
+				ASF.ArchiLogger.LogNullError(nameof(sender) + " || " + nameof(e));
 				return;
 			}
 
-			Log("[!] WARNING: " + previousMethodName + "() <" + botName + "> " + message);
-		}
+			InitConsoleLoggers();
 
-		internal static void LogGenericInfo(string message, string botName = "Main", [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
-				return;
-			}
-
-			Log("[*] INFO: " + previousMethodName + "() <" + botName + "> " + message);
-		}
-
-		internal static void LogNullError(string nullObjectName, string botName = "Main", [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(nullObjectName)) {
-				return;
-			}
-
-			LogGenericError(nullObjectName + " is null!", botName, previousMethodName);
-		}
-
-		[Conditional("DEBUG")]
-		internal static void LogGenericDebug(string message, string botName = "Main", [CallerMemberName] string previousMethodName = "") {
-			if (string.IsNullOrEmpty(message)) {
-				return;
-			}
-
-			Log("[#] DEBUG: " + previousMethodName + "() <" + botName + "> " + message);
-		}
-
-		private static void Log(string message) {
-			if (string.IsNullOrEmpty(message)) {
-				return;
-			}
-
-			string loggedMessage = DateTime.Now + " " + message + Environment.NewLine;
-
-			// Write on console only when not awaiting response from user
-			if (!Program.ConsoleIsBusy) {
-				try {
-					Console.Write(loggedMessage);
-				} catch { }
-			}
-
-			if (LogToFile) {
-				lock (FileLock) {
-					try {
-						File.AppendAllText(Program.LogFile, loggedMessage);
-					} catch (Exception e) {
-						LogToFile = false;
-						LogGenericException(e);
-					}
-				}
+			if (IsWaitingForUserInput) {
+				OnUserInputStart();
 			}
 		}
 	}

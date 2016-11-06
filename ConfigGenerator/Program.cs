@@ -23,20 +23,16 @@
 */
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using ArchiSteamFarm;
 
 namespace ConfigGenerator {
 	internal static class Program {
-		internal const string ASF = "ASF";
-		internal const string ConfigDirectory = "config";
-		internal const string GlobalConfigFile = ASF + ".json";
-
-		private const string ASFDirectory = "ArchiSteamFarm";
-
-		private static readonly string ExecutableDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+		private const string ASFExecutableFile = SharedInfo.ASF + ".exe";
 
 		/// <summary>
 		/// The main entry point for the application.
@@ -53,34 +49,63 @@ namespace ConfigGenerator {
 			AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
 			TaskScheduler.UnobservedTaskException += UnobservedTaskExceptionHandler;
 
-			Directory.SetCurrentDirectory(ExecutableDirectory);
+			string homeDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+			if (!string.IsNullOrEmpty(homeDirectory)) {
+				Directory.SetCurrentDirectory(homeDirectory);
 
-			// Allow loading configs from source tree if it's a debug build
-			if (Debugging.IsDebugBuild) {
+				// Allow loading configs from source tree if it's a debug build
+				if (Debugging.IsDebugBuild) {
 
-				// Common structure is bin/(x64/)Debug/ArchiSteamFarm.exe, so we allow up to 4 directories up
-				for (byte i = 0; i < 4; i++) {
-					Directory.SetCurrentDirectory("..");
-					if (Directory.Exists(ASFDirectory)) {
-						Directory.SetCurrentDirectory(ASFDirectory);
+					// Common structure is bin/(x64/)Debug/ArchiSteamFarm.exe, so we allow up to 4 directories up
+					for (byte i = 0; i < 4; i++) {
+						Directory.SetCurrentDirectory("..");
+						if (!Directory.Exists(SharedInfo.ASFDirectory)) {
+							continue;
+						}
+
+						Directory.SetCurrentDirectory(SharedInfo.ASFDirectory);
 						break;
 					}
-				}
 
-				// If config directory doesn't exist after our adjustment, abort all of that
-				if (!Directory.Exists(ConfigDirectory)) {
-					Directory.SetCurrentDirectory(ExecutableDirectory);
+					// If config directory doesn't exist after our adjustment, abort all of that
+					if (!Directory.Exists(SharedInfo.ConfigDirectory)) {
+						Directory.SetCurrentDirectory(homeDirectory);
+					}
 				}
 			}
 
-			if (!Directory.Exists(ConfigDirectory)) {
-				Logging.LogGenericError("Config directory could not be found!");
+			if (!Directory.Exists(SharedInfo.ConfigDirectory)) {
+				Logging.LogGenericErrorWithoutStacktrace("Config directory could not be found!");
 				Environment.Exit(1);
 			}
+
+			if (!File.Exists(ASFExecutableFile)) {
+				return;
+			}
+
+			FileVersionInfo asfVersionInfo = FileVersionInfo.GetVersionInfo(ASFExecutableFile);
+			Version asfVersion = new Version(asfVersionInfo.ProductVersion);
+
+			Version cgVersion = Assembly.GetEntryAssembly().GetName().Version;
+
+			if (asfVersion == cgVersion) {
+				return;
+			}
+
+			Logging.LogGenericErrorWithoutStacktrace(
+				"Version of ASF and ConfigGenerator doesn't match!" + Environment.NewLine +
+				"ASF version: " + asfVersion + " | ConfigGenerator version: " + cgVersion + Environment.NewLine +
+				Environment.NewLine +
+				"Please use ConfigGenerator from the same ASF release, I'll redirect you to appropriate ASF release..."
+			);
+
+			Process.Start("https://github.com/" + SharedInfo.GithubRepo + "/releases/tag/" + asfVersion);
+			Environment.Exit(1);
 		}
 
 		private static void UnhandledExceptionHandler(object sender, UnhandledExceptionEventArgs args) {
-			if (sender == null || args == null) {
+			if (args?.ExceptionObject == null) {
+				Logging.LogNullError(nameof(args) + " || " + nameof(args.ExceptionObject));
 				return;
 			}
 
@@ -88,7 +113,8 @@ namespace ConfigGenerator {
 		}
 
 		private static void UnobservedTaskExceptionHandler(object sender, UnobservedTaskExceptionEventArgs args) {
-			if (sender == null || args == null) {
+			if (args?.Exception == null) {
+				Logging.LogNullError(nameof(args) + " || " + nameof(args.Exception));
 				return;
 			}
 

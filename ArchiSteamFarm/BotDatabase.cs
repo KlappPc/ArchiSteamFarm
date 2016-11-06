@@ -23,16 +23,21 @@
 */
 
 using Newtonsoft.Json;
-using SteamAuth;
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Threading;
 
 namespace ArchiSteamFarm {
 	internal sealed class BotDatabase {
+		[JsonProperty]
+		private string _LoginKey;
+
 		internal string LoginKey {
 			get {
 				return _LoginKey;
 			}
+
 			set {
 				if (_LoginKey == value) {
 					return;
@@ -43,30 +48,31 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal SteamGuardAccount SteamGuardAccount {
+		[JsonProperty]
+		private MobileAuthenticator _MobileAuthenticator;
+
+		internal MobileAuthenticator MobileAuthenticator {
 			get {
-				return _SteamGuardAccount;
+				return _MobileAuthenticator;
 			}
+
 			set {
-				if (_SteamGuardAccount == value) {
+				if (_MobileAuthenticator == value) {
 					return;
 				}
 
-				_SteamGuardAccount = value;
+				_MobileAuthenticator = value;
 				Save();
 			}
 		}
 
-		[JsonProperty]
-		private string _LoginKey;
-
-		[JsonProperty]
-		private SteamGuardAccount _SteamGuardAccount;
+		private readonly object FileLock = new object();
 
 		private string FilePath;
 
 		internal static BotDatabase Load(string filePath) {
 			if (string.IsNullOrEmpty(filePath)) {
+				ASF.ArchiLogger.LogNullError(nameof(filePath));
 				return null;
 			}
 
@@ -75,14 +81,16 @@ namespace ArchiSteamFarm {
 			}
 
 			BotDatabase botDatabase;
+
 			try {
 				botDatabase = JsonConvert.DeserializeObject<BotDatabase>(File.ReadAllText(filePath));
 			} catch (Exception e) {
-				Logging.LogGenericException(e);
+				ASF.ArchiLogger.LogGenericException(e);
 				return null;
 			}
 
 			if (botDatabase == null) {
+				ASF.ArchiLogger.LogNullError(nameof(botDatabase));
 				return null;
 			}
 
@@ -93,7 +101,7 @@ namespace ArchiSteamFarm {
 		// This constructor is used when creating new database
 		private BotDatabase(string filePath) {
 			if (string.IsNullOrEmpty(filePath)) {
-				throw new ArgumentNullException("filePath");
+				throw new ArgumentNullException(nameof(filePath));
 			}
 
 			FilePath = filePath;
@@ -101,14 +109,26 @@ namespace ArchiSteamFarm {
 		}
 
 		// This constructor is used only by deserializer
+		[SuppressMessage("ReSharper", "UnusedMember.Local")]
 		private BotDatabase() { }
 
 		internal void Save() {
-			lock (FilePath) {
-				try {
-					File.WriteAllText(FilePath, JsonConvert.SerializeObject(this));
-				} catch (Exception e) {
-					Logging.LogGenericException(e);
+			string json = JsonConvert.SerializeObject(this);
+			if (string.IsNullOrEmpty(json)) {
+				ASF.ArchiLogger.LogNullError(nameof(json));
+				return;
+			}
+
+			lock (FileLock) {
+				for (byte i = 0; i < 5; i++) {
+					try {
+						File.WriteAllText(FilePath, json);
+						break;
+					} catch (Exception e) {
+						ASF.ArchiLogger.LogGenericException(e);
+					}
+
+					Thread.Sleep(1000);
 				}
 			}
 		}

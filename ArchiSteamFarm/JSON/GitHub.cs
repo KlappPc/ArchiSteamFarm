@@ -22,25 +22,29 @@
 
 */
 
-using Newtonsoft.Json;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using Newtonsoft.Json;
 
-namespace ArchiSteamFarm {
+namespace ArchiSteamFarm.JSON {
 	internal static class GitHub {
-		internal sealed class Asset {
-			[JsonProperty(PropertyName = "name", Required = Required.Always)]
-			internal string Name { get; private set; }
-
-			[JsonProperty(PropertyName = "browser_download_url", Required = Required.Always)]
-			internal string DownloadURL { get; private set; }
-		}
-
+		[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
 		internal sealed class ReleaseResponse {
+#pragma warning disable 649
+			internal sealed class Asset {
+				[JsonProperty(PropertyName = "name", Required = Required.Always)]
+				internal readonly string Name;
+
+				[JsonProperty(PropertyName = "browser_download_url", Required = Required.Always)]
+				internal readonly string DownloadURL;
+			}
+
 			[JsonProperty(PropertyName = "tag_name", Required = Required.Always)]
-			internal string Tag { get; private set; }
+			internal readonly string Tag;
 
 			[JsonProperty(PropertyName = "assets", Required = Required.Always)]
-			internal List<Asset> Assets { get; private set; }
+			internal readonly List<Asset> Assets;
+#pragma warning restore 649
 		}
 	}
 }

@@ -9,9 +9,12 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ConfigGenerator</RootNamespace>
     <AssemblyName>ConfigGenerator</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <TargetFrameworkProfile />
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -22,6 +25,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -33,13 +37,17 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>cirno.ico</ApplicationIcon>
+    <ApplicationIcon>ASF.ico</ApplicationIcon>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>OnOutputUpdated</RunPostBuildEvent>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Newtonsoft.Json, Version=8.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.8.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.9.0.2-beta1\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
@@ -48,6 +56,9 @@
     <Reference Include="System.Windows.Forms" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\ArchiSteamFarm\SharedInfo.cs">
+      <Link>SharedInfo.cs</Link>
+    </Compile>
     <Compile Include="ASFConfig.cs" />
     <Compile Include="BotConfig.cs" />
     <Compile Include="DialogBox.cs" />
@@ -55,6 +66,9 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="Debugging.cs" />
+    <Compile Include="FlagEnumEditor.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="GlobalConfig.cs" />
     <Compile Include="ConfigPage.cs">
       <SubType>Component</SubType>
@@ -68,6 +82,7 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RunTime.cs" />
     <Compile Include="Tutorial.cs" />
     <EmbeddedResource Include="ConfigPage.resx">
       <DependentUpon>ConfigPage.cs</DependentUpon>
@@ -83,6 +98,7 @@
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
+      <DesignTime>True</DesignTime>
     </Compile>
     <None Include="packages.config" />
     <None Include="Properties\Settings.settings">
@@ -99,19 +115,34 @@
     <None Include="App.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="cirno.ico" />
+    <None Include="FodyWeavers.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ASF.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent Condition=" '$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' ">
-      "$(SolutionDir)tools\ILRepack\ILRepack.exe" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out\ASF-ConfigGenerator.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
-      del "$(SolutionDir)out\ASF-ConfigGenerator.exe.config"
+      copy "$(TargetDir)$(TargetName).exe" "$(SolutionDir)out\ASF-ConfigGenerator.exe"
     </PostBuildEvent>
     <PostBuildEvent Condition=" '$(OS)' == 'Unix' AND '$(ConfigurationName)' == 'Release' ">
-      mono -O=all "$(SolutionDir)tools/ILRepack/ILRepack.exe" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-ConfigGenerator.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
+      if [ -f "$(SolutionDir)mono_envsetup.sh" ]; then
+        . "$(SolutionDir)mono_envsetup.sh"
+      fi
+
+      mono "$(SolutionDir)tools/ILRepack/ILRepack.exe" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-ConfigGenerator.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
       rm "$(SolutionDir)out/ASF-ConfigGenerator.exe.config"
     </PostBuildEvent>
   </PropertyGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets'))" />
+    <Error Condition="!Exists('..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets'))" />
+  </Target>
+  <Import Project="..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets')" />
+  <Import Project="..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

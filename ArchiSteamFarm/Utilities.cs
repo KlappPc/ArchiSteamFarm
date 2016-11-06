@@ -23,61 +23,36 @@
 */
 
 using System;
-using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
-using System.Threading.Tasks;
+using System.Runtime.CompilerServices;
 
 namespace ArchiSteamFarm {
 	internal static class Utilities {
-		internal static void Forget(this Task task) { }
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		[SuppressMessage("ReSharper", "UnusedParameter.Global")]
+		internal static void Forget(this object obj) { }
 
-		internal static Task ForEachAsync<T>(this IEnumerable<T> sequence, Func<T, Task> action) {
-			return Task.WhenAll(sequence.Select(action));
-		}
-
-		internal static string GetCookieValue(this CookieContainer cookieContainer, string URL, string name) {
-			if (string.IsNullOrEmpty(URL) || string.IsNullOrEmpty(name)) {
+		internal static string GetCookieValue(this CookieContainer cookieContainer, string url, string name) {
+			if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(name)) {
+				ASF.ArchiLogger.LogNullError(nameof(url) + " || " + nameof(name));
 				return null;
 			}
 
-			CookieCollection cookies = cookieContainer.GetCookies(new Uri(URL));
-			if (cookies == null || cookies.Count == 0) {
+			Uri uri;
+
+			try {
+				uri = new Uri(url);
+			} catch (UriFormatException e) {
+				ASF.ArchiLogger.LogGenericException(e);
 				return null;
 			}
 
-			foreach (Cookie cookie in cookies) {
-				if (!cookie.Name.Equals(name, StringComparison.Ordinal)) {
-					continue;
-				}
-
-				return cookie.Value;
-			}
-
-			return null;
+			CookieCollection cookies = cookieContainer.GetCookies(uri);
+			return cookies.Count == 0 ? null : (from Cookie cookie in cookies where cookie.Name.Equals(name) select cookie.Value).FirstOrDefault();
 		}
 
-		internal static Task SleepAsync(int miliseconds) {
-			if (miliseconds < 0) {
-				return Task.FromResult(true);
-			}
-
-			return Task.Delay(miliseconds);
-		}
-
-		internal static uint GetCharCountInString(string s, char c) {
-			if (string.IsNullOrEmpty(s)) {
-				return 0;
-			}
-
-			uint count = 0;
-			foreach (char singleChar in s) {
-				if (singleChar == c) {
-					count++;
-				}
-			}
-
-			return count;
-		}
+		internal static uint GetUnixTime() => (uint) DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds;
 	}
 }

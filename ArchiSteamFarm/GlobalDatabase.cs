@@ -24,16 +24,28 @@
 
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 
 namespace ArchiSteamFarm {
-	internal sealed class GlobalDatabase {
+	internal sealed class GlobalDatabase : IDisposable {
+		private static readonly JsonSerializerSettings CustomSerializerSettings = new JsonSerializerSettings {
+			Converters = new List<JsonConverter>(2) {
+				new IPAddressConverter(),
+				new IPEndPointConverter()
+			}
+		};
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		private uint _CellID;
+
 		internal uint CellID {
 			get {
 				return _CellID;
 			}
 			set {
-				if (_CellID == value) {
+				if ((value == 0) || (_CellID == value)) {
 					return;
 				}
 
@@ -43,12 +55,15 @@ namespace ArchiSteamFarm {
 		}
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		private uint _CellID;
+		internal readonly InMemoryServerListProvider ServerListProvider = new InMemoryServerListProvider();
+
+		private readonly object FileLock = new object();
 
 		private string FilePath;
 
 		internal static GlobalDatabase Load(string filePath) {
 			if (string.IsNullOrEmpty(filePath)) {
+				ASF.ArchiLogger.LogNullError(nameof(filePath));
 				return null;
 			}
 
@@ -57,14 +72,16 @@ namespace ArchiSteamFarm {
 			}
 
 			GlobalDatabase globalDatabase;
+
 			try {
-				globalDatabase = JsonConvert.DeserializeObject<GlobalDatabase>(File.ReadAllText(filePath));
+				globalDatabase = JsonConvert.DeserializeObject<GlobalDatabase>(File.ReadAllText(filePath), CustomSerializerSettings);
 			} catch (Exception e) {
-				Logging.LogGenericException(e);
+				ASF.ArchiLogger.LogGenericException(e);
 				return null;
 			}
 
 			if (globalDatabase == null) {
+				ASF.ArchiLogger.LogNullError(nameof(globalDatabase));
 				return null;
 			}
 
@@ -72,10 +89,15 @@ namespace ArchiSteamFarm {
 			return globalDatabase;
 		}
 
+		public void Dispose() {
+			ServerListProvider.ServerListUpdated -= OnServerListUpdated;
+			ServerListProvider.Dispose();
+		}
+
 		// This constructor is used when creating new database
-		private GlobalDatabase(string filePath) {
+		private GlobalDatabase(string filePath) : this() {
 			if (string.IsNullOrEmpty(filePath)) {
-				throw new ArgumentNullException("filePath");
+				throw new ArgumentNullException(nameof(filePath));
 			}
 
 			FilePath = filePath;
@@ -83,14 +105,29 @@ namespace ArchiSteamFarm {
 		}
 
 		// This constructor is used only by deserializer
-		private GlobalDatabase() { }
+		private GlobalDatabase() {
+			ServerListProvider.ServerListUpdated += OnServerListUpdated;
+		}
+
+		private void OnServerListUpdated(object sender, EventArgs e) => Save();
 
 		private void Save() {
-			lock (FilePath) {
-				try {
-					File.WriteAllText(FilePath, JsonConvert.SerializeObject(this));
-				} catch (Exception e) {
-					Logging.LogGenericException(e);
+			string json = JsonConvert.SerializeObject(this, CustomSerializerSettings);
+			if (string.IsNullOrEmpty(json)) {
+				ASF.ArchiLogger.LogNullError(nameof(json));
+				return;
+			}
+
+			lock (FileLock) {
+				for (byte i = 0; i < 5; i++) {
+					try {
+						File.WriteAllText(FilePath, json);
+						break;
+					} catch (Exception e) {
+						ASF.ArchiLogger.LogGenericException(e);
+					}
+
+					Thread.Sleep(1000);
 				}
 			}
 		}

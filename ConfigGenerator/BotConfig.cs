@@ -25,48 +25,102 @@
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 
 namespace ConfigGenerator {
+	[SuppressMessage("ReSharper", "AutoPropertyCanBeMadeGetOnly.Global")]
+	[SuppressMessage("ReSharper", "CollectionNeverQueried.Global")]
+	[SuppressMessage("ReSharper", "MemberCanBePrivate.Global")]
+	[SuppressMessage("ReSharper", "UnusedMember.Global")]
 	internal sealed class BotConfig : ASFConfig {
+		internal enum ECryptoMethod : byte {
+			PlainText,
+			AES,
+			ProtectedDataForCurrentUser
+		}
+
+		internal enum EFarmingOrder : byte {
+			Unordered,
+			AppIDsAscending,
+			AppIDsDescending,
+			CardDropsAscending,
+			CardDropsDescending,
+			HoursAscending,
+			HoursDescending,
+			NamesAscending,
+			NamesDescending
+		}
+
+		[Flags]
+		internal enum ETradingPreferences : byte {
+			None = 0,
+			AcceptDonations = 1,
+			SteamTradeMatcher = 2,
+			MatchEverything = 4
+		}
+
+		[Category("\t\tCore")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool Enabled { get; set; } = false;
 
+		[Category("\tAdvanced")]
 		[JsonProperty(Required = Required.DisallowNull)]
-		public bool StartOnLaunch { get; set; } = true;
+		public bool Paused { get; set; } = false;
 
+		[Category("\t\tCore")]
 		[JsonProperty]
 		public string SteamLogin { get; set; } = null;
 
+		[Category("\t\tCore")]
 		[JsonProperty]
+		[PasswordPropertyText(true)]
 		public string SteamPassword { get; set; } = null;
 
+		[Category("\tAccess")]
+		[JsonProperty(Required = Required.DisallowNull)]
+		public ECryptoMethod PasswordFormat { get; set; } = ECryptoMethod.PlainText;
+
+		[Category("\tAccess")]
 		[JsonProperty]
 		public string SteamParentalPIN { get; set; } = "0";
 
+		[Category("\tAccess")]
 		[JsonProperty]
 		public string SteamApiKey { get; set; } = null;
 
+		[Category("\tAccess")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public ulong SteamMasterID { get; set; } = 0;
 
+		[Category("\tAccess")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public ulong SteamMasterClanID { get; set; } = 0;
 
+		[Category("\tPerformance")]
 		[JsonProperty(Required = Required.DisallowNull)]
-		public bool CardDropsRestricted { get; set; } = false;
+		public bool CardDropsRestricted { get; set; } = true;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool DismissInventoryNotifications { get; set; } = true;
 
 		[JsonProperty(Required = Required.DisallowNull)]
+		public EFarmingOrder FarmingOrder { get; set; } = EFarmingOrder.Unordered;
+
+		[JsonProperty(Required = Required.DisallowNull)]
 		public bool FarmOffline { get; set; } = false;
 
+		[Category("\tAdvanced")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool HandleOfflineMessages { get; set; } = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool AcceptGifts { get; set; } = false;
+
+		[Category("\tAdvanced")]
+		[JsonProperty(Required = Required.DisallowNull)]
+		public bool IsBotAccount { get; set; } = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool ForwardKeysToOtherBots { get; set; } = false;
@@ -75,22 +129,29 @@ namespace ConfigGenerator {
 		public bool DistributeKeys { get; set; } = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		public bool UseAsfAsMobileAuthenticator { get; set; } = false;
-
-		[JsonProperty(Required = Required.DisallowNull)]
 		public bool ShutdownOnFarmingFinished { get; set; } = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool SendOnFarmingFinished { get; set; } = false;
 
+		[Category("\tAccess")]
 		[JsonProperty]
 		public string SteamTradeToken { get; set; } = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public byte SendTradePeriod { get; set; } = 0;
 
+		[Category("\tAdvanced")]
+		[Editor(typeof(FlagEnumUIEditor), typeof(System.Drawing.Design.UITypeEditor))]
+		[JsonProperty(Required = Required.DisallowNull)]
+		public ETradingPreferences TradingPreferences { get; set; } = ETradingPreferences.AcceptDonations;
+
+		[Category("\tAdvanced")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public byte AcceptConfirmationsPeriod { get; set; } = 0;
+
+		[JsonProperty]
+		public string CustomGamePlayedWhileFarming { get; set; } = null;
 
 		[JsonProperty]
 		public string CustomGamePlayedWhileIdle { get; set; } = null;
@@ -100,6 +161,7 @@ namespace ConfigGenerator {
 
 		internal static BotConfig Load(string filePath) {
 			if (string.IsNullOrEmpty(filePath)) {
+				Logging.LogNullError(nameof(filePath));
 				return null;
 			}
 
@@ -108,6 +170,7 @@ namespace ConfigGenerator {
 			}
 
 			BotConfig botConfig;
+
 			try {
 				botConfig = JsonConvert.DeserializeObject<BotConfig>(File.ReadAllText(filePath));
 			} catch (Exception e) {
@@ -124,15 +187,14 @@ namespace ConfigGenerator {
 			return botConfig;
 		}
 
-		// This constructor is used only by deserializer
+		[SuppressMessage("ReSharper", "UnusedMember.Local")]
 		private BotConfig() { }
 
 		private BotConfig(string filePath) : base(filePath) {
 			if (string.IsNullOrEmpty(filePath)) {
-				throw new ArgumentNullException("filePath");
+				throw new ArgumentNullException(nameof(filePath));
 			}
 
-			GamesPlayedWhileIdle.Add(0);
 			Save();
 		}
 	}
