@@ -563,9 +563,15 @@ namespace ArchiSteamFarm {
 					if (args.Length > 2) {
 						return await ResponseAddLicense(steamID, args[1], args[2]).ConfigureAwait(false);
 					}
+                    return await ResponseAddLicense(steamID, BotName, args[1]).ConfigureAwait(false);
 
-					return await ResponseAddLicense(steamID, BotName, args[1]).ConfigureAwait(false);
-				case "!FARM":
+                case "!TRANSFER":
+                    if (args.Length <= 3)
+                    {
+                        ResponseUnknown(steamID); //think of how to handle missing info.
+                    }
+                    return await ResponseTransfer(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
+                case "!FARM":
 					return await ResponseFarm(steamID, args[1]).ConfigureAwait(false);
 				case "!LOOT":
 					return await ResponseLoot(steamID, args[1]).ConfigureAwait(false);
@@ -1477,7 +1483,89 @@ namespace ArchiSteamFarm {
 			return await bot.ResponseAddLicense(steamID, gamesToRedeem).ConfigureAwait(false);
 		}
 
-		private async Task<string> ResponseOwns(ulong steamID, string query) {
+        private static async Task<string> ResponseTransfer(ulong steamID, string mode, string botNameFrom, string botNameTo)
+        {
+            if ((steamID == 0) || string.IsNullOrEmpty(botNameFrom) || string.IsNullOrEmpty(botNameTo) || string.IsNullOrEmpty(mode))
+            {
+                ASF.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(mode) + " || " + nameof(botNameFrom) + " || " + nameof(botNameTo));
+                return null;
+            }
+
+            Bot botFrom, botTo;
+            if (!Bots.TryGetValue(botNameFrom, out botFrom))
+            {
+                if (IsOwner(steamID))
+                {
+                    return "Couldn't find any bot named " + botNameFrom + "!";
+                }
+
+                return null;
+            }
+            if (!Bots.TryGetValue(botNameTo, out botTo))
+            {
+                if (IsOwner(steamID))
+                {
+                    return "Couldn't find any bot named " + botNameTo + "!";
+                }
+
+                return null;
+            }
+
+            if (steamID == 0)
+            {
+                botFrom.ArchiLogger.LogNullError(nameof(steamID));
+                return null;
+            }
+
+            if (!botFrom.IsMaster(steamID))
+            {
+                return null;
+            }
+
+            if (!botFrom.IsConnectedAndLoggedOn)
+            {
+                return "This bot instance is not connected!";
+            }
+
+            if (botFrom.BotConfig.SteamMasterID == 0)
+            {
+                return "Trade couldn't be send because SteamMasterID is not defined!";
+            }
+
+            if (botTo.SteamClient.SteamID == botFrom.SteamClient.SteamID)
+            {
+                return "You can't transfere to yourself!";
+            }
+
+            await Trading.LimitInventoryRequestsAsync().ConfigureAwait(false);
+
+            HashSet<Steam.Item> inventory = await botFrom.ArchiWebHandler.GetMySteamInventory(true).ConfigureAwait(false);
+            if ((inventory == null) || (inventory.Count == 0))
+            {
+                return "Nothing to send, inventory seems empty!";
+            }
+
+            //TODO cases and inventory stuff
+            // Remove from our pending inventory all items that are not steam cards and boosters
+            //if (inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.TradingCard) && ((item.Type != Steam.Item.EType.FoilTradingCard) || !botFrom.BotConfig.IsBotAccount) && (item.Type != Steam.Item.EType.BoosterPack)) > 0)
+            //{
+            //    if (inventory.Count == 0)
+            //    {
+            //        return "Nothing to send, inventory seems empty!";
+            //   }
+            //}
+            //botTo.BotConfig.SteamTradeToken now works only for friends. which token to use?
+            if (!await botFrom.ArchiWebHandler.SendTradeOffer(inventory, botTo.SteamClient.SteamID, null).ConfigureAwait(false))
+            {
+                return "Trade offer failed due to error!";
+            }
+
+            await Task.Delay(1000).ConfigureAwait(false); // Sometimes we can be too fast for Steam servers to generate confirmations, wait a short moment
+            await botFrom.AcceptConfirmations(true, Steam.ConfirmationDetails.EType.Trade, botTo.SteamClient.SteamID).ConfigureAwait(false);
+            return "Trade offer sent successfully!";
+        }
+
+        private async Task<string> ResponseOwns(ulong steamID, string query) {
 			if ((steamID == 0) || string.IsNullOrEmpty(query)) {
 				ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(query));
 				return null;
