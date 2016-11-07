@@ -382,7 +382,7 @@ namespace ArchiSteamFarm {
                     if (htmlNode2==null)
                     {
                         Bot.ArchiLogger.LogGenericInfo("Skipped one, no badge_row_overlay");
-                        continue;
+                        continue; //just ignore this game
                     }
                     string steamLink = htmlNode2.GetAttributeValue("href",null);
                     if (steamLink.EndsWith("/"))
@@ -392,21 +392,21 @@ namespace ArchiSteamFarm {
                     if (string.IsNullOrEmpty(steamLink))
                     {
                         Bot.ArchiLogger.LogNullError(nameof(steamLink));
-                        return;
+                        continue; //just ignore this game
                     }
 
                     int index = steamLink.LastIndexOf('/');
                     if (index < 0)
                     {
                         Bot.ArchiLogger.LogNullError(nameof(index));
-                        return;
+                        continue; //just ignore this game
                     }
 
                     index++;
                     if (steamLink.Length <= index)
                     {
                         Bot.ArchiLogger.LogNullError(nameof(steamLink.Length));
-                        return;
+                        continue; //just ignore this game
                     }
 
                     steamLink = steamLink.Substring(index);
@@ -414,7 +414,7 @@ namespace ArchiSteamFarm {
                     if (!uint.TryParse(steamLink, out appID) || (appID == 0))
                     {
                         Bot.ArchiLogger.LogNullError(nameof(appID));
-                        return;
+                        continue; //just ignore this game
                     }
                     htmlNode2 = htmlNode.SelectSingleNode(".//div[@class='badge_progress_info']");
                     if (htmlNode2 == null)
@@ -427,6 +427,12 @@ namespace ArchiSteamFarm {
                     if (cardsString.Contains("Ready")){
                         Bot.ArchiLogger.LogGenericInfo("Badge for " + appID + " is ready.");
                         //add game with at least one full set
+                        Bot.addGameReady(appID);
+                        continue;
+                    }
+                    if (cardsString.Contains("tasks"))
+                    {
+                        // steamcommunity badge, ignore.
                         continue;
                     }
                     if (!cardsString.Contains(" "))
@@ -444,11 +450,18 @@ namespace ArchiSteamFarm {
                     }
 
                     uint have, max;
-                    if(!uint.TryParse(cardSplit[0], out have) || !uint.TryParse(cardSplit[2], out max) || max<4)
+                    if(!uint.TryParse(cardSplit[0], out have) || !uint.TryParse(cardSplit[2], out max) || max<5)
+                        //there are minimum 5 cards per set, if its different somethings fishy.
                     {
                         Bot.ArchiLogger.LogNullError(nameof(cardSplit));
-                        return;
+                        continue; //just ignore this game
                     }
+                    if(have==0)
+                    {
+                        //we dont have cards of that game, so we dont care.
+                        continue;
+                    }
+                    Bot.addGameMixed(appID, max);
                     Bot.ArchiLogger.LogGenericInfo("Badge for " + appID + " | " + have + " of " + max + " cards in inventory.");
                 }
 
