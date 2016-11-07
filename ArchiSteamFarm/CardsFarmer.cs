@@ -365,6 +365,95 @@ namespace ArchiSteamFarm {
 		}
 
 		private void CheckPage(HtmlDocument htmlDocument) {
+
+
+            bool enableTransfer = true; //get that from config or stuff.
+            if (enableTransfer)
+            {
+                HtmlNodeCollection htmlNodes2 = htmlDocument.DocumentNode.SelectNodes("//div[@class='badge_row is_link']");
+                if (htmlNodes2 == null)
+                { // No eligible badges
+                    Bot.ArchiLogger.LogGenericInfo("Skipped all, no badge_row");
+                    return;
+                }
+                foreach (HtmlNode htmlNode in htmlNodes2)
+                {
+                    HtmlNode htmlNode2 = htmlNode.SelectSingleNode(".//a[@class='badge_row_overlay']");
+                    if (htmlNode2==null)
+                    {
+                        Bot.ArchiLogger.LogGenericInfo("Skipped one, no badge_row_overlay");
+                        continue;
+                    }
+                    string steamLink = htmlNode2.GetAttributeValue("href",null);
+                    if (steamLink.EndsWith("/"))
+                    {
+                        steamLink= steamLink.Substring(0,steamLink.Length-1);
+                    }
+                    if (string.IsNullOrEmpty(steamLink))
+                    {
+                        Bot.ArchiLogger.LogNullError(nameof(steamLink));
+                        return;
+                    }
+
+                    int index = steamLink.LastIndexOf('/');
+                    if (index < 0)
+                    {
+                        Bot.ArchiLogger.LogNullError(nameof(index));
+                        return;
+                    }
+
+                    index++;
+                    if (steamLink.Length <= index)
+                    {
+                        Bot.ArchiLogger.LogNullError(nameof(steamLink.Length));
+                        return;
+                    }
+
+                    steamLink = steamLink.Substring(index);
+                    uint appID;
+                    if (!uint.TryParse(steamLink, out appID) || (appID == 0))
+                    {
+                        Bot.ArchiLogger.LogNullError(nameof(appID));
+                        return;
+                    }
+                    htmlNode2 = htmlNode.SelectSingleNode(".//div[@class='badge_progress_info']");
+                    if (htmlNode2 == null)
+                    {
+                        Bot.ArchiLogger.LogGenericInfo("Skipped one, no badge_progress_info");
+                        continue;
+                    }
+                    
+                    string cardsString = htmlNode2.InnerText;
+                    if (cardsString.Contains("Ready")){
+                        Bot.ArchiLogger.LogGenericInfo("Badge for " + appID + " is ready.");
+                        //add game with at least one full set
+                        continue;
+                    }
+                    if (!cardsString.Contains(" "))
+                    {
+                        Bot.ArchiLogger.LogGenericInfo("Skipped one, no space.");
+                        //not a normal badge or lvl 5 and maybe cards or lvl <5 and no cards
+                        continue;
+                    }
+                    string[] cardSplit = cardsString.Split(' ');
+                    if (cardSplit.Length<5)
+                    {
+                        Bot.ArchiLogger.LogGenericInfo("Skipped one, not enough parts.");
+                        //not a normal badge or lvl 5 and maybe cards or lvl <5 and no cards
+                        continue;
+                    }
+
+                    uint have, max;
+                    if(!uint.TryParse(cardSplit[0], out have) || !uint.TryParse(cardSplit[2], out max) || max<4)
+                    {
+                        Bot.ArchiLogger.LogNullError(nameof(cardSplit));
+                        return;
+                    }
+                    Bot.ArchiLogger.LogGenericInfo("Badge for " + appID + " | " + have + " of " + max + " cards in inventory.");
+                }
+
+            }
+
 			if (htmlDocument == null) {
 				Bot.ArchiLogger.LogNullError(nameof(htmlDocument));
 				return;
