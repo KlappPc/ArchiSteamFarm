@@ -1795,6 +1795,7 @@ namespace ArchiSteamFarm
 
         private static async Task<string> ResponseTransfer(ulong steamID, string mode, string botNameFrom, string botNameTo)
         {
+            //standard procedure adapted from loot
             if ((steamID == 0) || string.IsNullOrEmpty(botNameFrom) || string.IsNullOrEmpty(botNameTo) || string.IsNullOrEmpty(mode))
             {
                 ASF.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(mode) + " || " + nameof(botNameFrom) + " || " + nameof(botNameTo));
@@ -1802,20 +1803,11 @@ namespace ArchiSteamFarm
             }
 
             Bot botFrom, botTo;
-            if (!Bots.TryGetValue(botNameFrom, out botFrom))
+            if (!Bots.TryGetValue(botNameFrom, out botFrom) || !Bots.TryGetValue(botNameTo, out botTo))
             {
                 if (IsOwner(steamID))
                 {
-                    return "Couldn't find any bot named " + botNameFrom + "!";
-                }
-
-                return null;
-            }
-            if (!Bots.TryGetValue(botNameTo, out botTo))
-            {
-                if (IsOwner(steamID))
-                {
-                    return "Couldn't find any bot named " + botNameTo + "!";
+                    return "Couldn't find one of the bots named " + botNameFrom + " or " + botNameTo + "!";
                 }
 
                 return null;
@@ -1834,12 +1826,7 @@ namespace ArchiSteamFarm
 
             if (!botFrom.IsConnectedAndLoggedOn)
             {
-                return "This bot instance is not connected!";
-            }
-
-            if (botFrom.BotConfig.SteamMasterID == 0)
-            {
-                return "Trade couldn't be send because SteamMasterID is not defined!";
+                return botNameFrom + " is not connected!";
             }
 
             if (botTo.SteamClient.SteamID == botFrom.SteamClient.SteamID)
@@ -1859,17 +1846,19 @@ namespace ArchiSteamFarm
                 return "Nothing to send, inventory seems empty!";
             }
 
-            //first fill the amount of cards for badges we have ready. (Count the amount of different cards).
+            //first fill the amount of cards for badges we have ready to craft. (Count the amount of different cards).
             if (botFrom.GamesReady.Count > 0)
             {
+                //just keep the normal cars for games we don't know the amount of cards.
                 inventory.RemoveWhere(item => !botFrom.GamesReady.Contains(item.RealAppID));
                 inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.TradingCard));
 
                 List<ulong> added = new List<ulong>();
                 foreach (Steam.Item item in inventory)
                 {
-                    if (added.Contains(item.ClassID)) continue;
+                    if (added.Contains(item.ClassID)) continue; //card already counted
 
+                    //count to game, the card is from
                     uint max;
                     if (botFrom.GamesMixed.TryGetValue(item.RealAppID, out max))
                     {
@@ -1885,9 +1874,13 @@ namespace ArchiSteamFarm
                 botFrom.GamesReady.Clear(); // we have them in Games Mixed now.
                 added.Clear();
             }
-            // now we have a list of alle badges we have cards for with cards needed for badge. (the more or the less)
-            inventory = inventoryFull;
+            // now we have a list of alle badges we have cards for with amount of 
+            // cards needed for badge. (the more or the less)
+            inventory = inventoryFull; //reset to full inventory.
+
             bool fullsets = false, sets = false, rest = false;
+            //probably would be better, do different commands, 
+            //instead of parameter, but would be much duplicated code.
             switch (mode.ToUpper())
             {
                 case "ALL":
@@ -1906,29 +1899,39 @@ namespace ArchiSteamFarm
                     //just send all emoticons.
                     inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.Emoticon));
                     break;
-                case "BACKGROUNDS":
+                case "BACKGROUND":
                     //just send all backgrounds.
                     inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.ProfileBackground));
+                    break;
+                case "BUTCARD":
+                    //just send everything, BUT normal cards.
+                    inventory.RemoveWhere(item => (item.Type == Steam.Item.EType.TradingCard));
                     break;
                 case "EVERYTHING":
                     //just send everything.
                     break;
-                case "FULLSETS":
+                case "FULLSET":
                     //just send all full sets (completed sets, ready to craft).
                     fullsets = true;
                     break;
-                case "SETS":
+                case "SET":
                     //just send all unfinished sets (enough cards, but to much dupes).
                     sets = true;
                     break;
                 case "REST":
+                    //just send all cards, that are defenitly not needed for sets.
                     rest = true;
                     break;
+                default:
+                    return "Unknown mode "+mode+"!";
+
             }
             if (fullsets || sets || rest)
             {// only works for normal cards.
                 inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.TradingCard));
 
+                //first create a map: for each game, count the amount for each classid
+                // we use int for the amount, so we can use sum<>.
                 Dictionary<uint, Dictionary<ulong, int>> amountMap = new Dictionary<uint, Dictionary<ulong, int>>();
                 foreach (Steam.Item item in inventory)
                 {
@@ -1953,16 +1956,21 @@ namespace ArchiSteamFarm
                         amountMap[item.RealAppID] = game;
                     }
                 }
-
-                List<uint> removeGames = new List<uint>();
                 //So for each game, we now have a list with classIds and amount.
+
+                //gather a list of games, that will not be send at all.
+                List<uint> removeGames = new List<uint>();
+                //then we will adjust the amount in amountMap to what we want to send (0 or removed
+                // means card will not be send)
+
                 foreach (uint key in amountMap.Keys)
                 {
                     Dictionary<ulong, int> cards;
-                    amountMap.TryGetValue(key, out cards);
+                    amountMap.TryGetValue(key, out cards); //check not needed?
 
                     uint max;
-                    if (!botFrom.GamesMixed.TryGetValue(key, out max)) continue; //ignore game.
+                    //ignore game, we have no information about
+                    if (!botFrom.GamesMixed.TryGetValue(key, out max)) continue; 
 
                     int amountCards = cards.Values.Sum();
                     int amountMixedSets = (int)Math.Floor((double)amountCards / (double)max);
@@ -1984,15 +1992,9 @@ namespace ArchiSteamFarm
                             // only too few cards, send all
                             continue;
                         }
-                        if (amountMixedSets > 0)
+                        if ((amountMixedSets > 0) || ((amountCards - amountSets * max) == 0))
                         {
-                            // enough to make more sets, send none
-                            removeGames.Add(key);
-                            continue;
-                        }
-                        if ((amountCards - amountSets * max) == 0)
-                        {
-                            // no cards outside of sets, send nothing.
+                            // enough to make more sets or no cards outside of sets, send nothing.
                             removeGames.Add(key);
                             continue;
                         }
@@ -2052,7 +2054,7 @@ namespace ArchiSteamFarm
                 foreach (uint key in removeGames)
                     amountMap.Remove(key);
                 //now we have a list of all classids with the amount we want to send (for each game).
-                // keep these and remove the rest.
+                // put these in our new inventory and ignore the rest.
                 foreach (Steam.Item item in inventory)
                 {
                     Dictionary<ulong, int> cards;
@@ -2067,7 +2069,12 @@ namespace ArchiSteamFarm
             }
             else
             {
+                //we do not need to filter after sets, fullsets or rest.
                 inventoryToSend = inventory;
+            }
+            if(inventoryToSend.Count == 0)
+            {
+                return "No items to be send for " + mode + "!";
             }
 
             if (!await botFrom.ArchiWebHandler.SendTradeOffer(inventoryToSend, botTo.SteamClient.SteamID, null).ConfigureAwait(false))
@@ -2078,18 +2085,6 @@ namespace ArchiSteamFarm
             await Task.Delay(1000).ConfigureAwait(false); // Sometimes we can be too fast for Steam servers to generate confirmations, wait a short moment
             await botFrom.AcceptConfirmations(true, Steam.ConfirmationDetails.EType.Trade, botTo.SteamClient.SteamID).ConfigureAwait(false);
             return "Trade offer sent successfully!";
-
-            //TODO cases and inventory stuff
-            // Remove from our pending inventory all items that are not steam cards and boosters
-            //if (inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.TradingCard) && ((item.Type != Steam.Item.EType.FoilTradingCard) || !botFrom.BotConfig.IsBotAccount) && (item.Type != Steam.Item.EType.BoosterPack)) > 0)
-            //{
-            //    if (inventory.Count == 0)
-            //    {
-            //        return "Nothing to send, inventory seems empty!";
-            //   }
-            //}
-            //botTo.BotConfig.SteamTradeToken now works only for friends. which token to use?
-
         }
 
         private async Task<string> ResponseOwns(ulong steamID, string query)

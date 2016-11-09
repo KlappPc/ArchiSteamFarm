@@ -366,111 +366,122 @@ namespace ArchiSteamFarm {
 
 		private void CheckPage(HtmlDocument htmlDocument) {
 
+            if (htmlDocument == null)
+            {
+                Bot.ArchiLogger.LogNullError(nameof(htmlDocument));
+                return;
+            }
+
 
             bool enableTransfer = true; //get that from config or stuff.
             if (enableTransfer)
             {
                 HtmlNodeCollection htmlNodes2 = htmlDocument.DocumentNode.SelectNodes("//div[@class='badge_row is_link']");
-                if (htmlNodes2 == null)
-                { // No eligible badges
-                    Bot.ArchiLogger.LogGenericInfo("Skipped all, no badge_row");
-                    return;
-                }
-                foreach (HtmlNode htmlNode in htmlNodes2)
+                if (htmlNodes2 != null)
                 {
-                    HtmlNode htmlNode2 = htmlNode.SelectSingleNode(".//a[@class='badge_row_overlay']");
-                    if (htmlNode2==null)
+                    foreach (HtmlNode htmlNode in htmlNodes2)
                     {
-                        Bot.ArchiLogger.LogGenericInfo("Skipped one, no badge_row_overlay");
-                        continue; //just ignore this game
-                    }
-                    string steamLink = htmlNode2.GetAttributeValue("href",null);
-                    if (steamLink.EndsWith("/"))
-                    {
-                        steamLink= steamLink.Substring(0,steamLink.Length-1);
-                    }
-                    if (string.IsNullOrEmpty(steamLink))
-                    {
-                        Bot.ArchiLogger.LogNullError(nameof(steamLink));
-                        continue; //just ignore this game
-                    }
+                        HtmlNode htmlNode2 = htmlNode.SelectSingleNode(".//a[@class='badge_row_overlay']");
+                        if (htmlNode2 == null)
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Skipped one, no badge_row_overlay");
+                            continue; //just ignore this game
+                        }
 
-                    int index = steamLink.LastIndexOf('/');
-                    if (index < 0)
-                    {
-                        Bot.ArchiLogger.LogNullError(nameof(index));
-                        continue; //just ignore this game
-                    }
+                        // get the appid
+                        string steamLink = htmlNode2.GetAttributeValue("href", null);
+                        if (steamLink.EndsWith("/?border=1"))
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Skipped one, foil badge");
+                            continue; //just ignore this game
+                        }
+                        if (steamLink.EndsWith("/"))
+                        {
+                            steamLink = steamLink.Substring(0, steamLink.Length - 1);
+                        }
+                        if (string.IsNullOrEmpty(steamLink))
+                        {
+                            Bot.ArchiLogger.LogNullError(nameof(steamLink));
+                            continue; //just ignore this game
+                        }
 
-                    index++;
-                    if (steamLink.Length <= index)
-                    {
-                        Bot.ArchiLogger.LogNullError(nameof(steamLink.Length));
-                        continue; //just ignore this game
-                    }
+                        int index = steamLink.LastIndexOf('/');
+                        if (index < 0)
+                        {
+                            Bot.ArchiLogger.LogNullError(nameof(index));
+                            continue; //just ignore this game
+                        }
 
-                    steamLink = steamLink.Substring(index);
-                    uint appID;
-                    if (!uint.TryParse(steamLink, out appID) || (appID == 0))
-                    {
-                        Bot.ArchiLogger.LogNullError(nameof(appID));
-                        continue; //just ignore this game
-                    }
-                    htmlNode2 = htmlNode.SelectSingleNode(".//div[@class='badge_progress_info']");
-                    if (htmlNode2 == null)
-                    {
-                        Bot.ArchiLogger.LogGenericInfo("Skipped one, no badge_progress_info");
-                        continue;
-                    }
-                    
-                    string cardsString = htmlNode2.InnerText;
-                    if (cardsString.Contains("Ready")){
-                        Bot.ArchiLogger.LogGenericInfo("Badge for " + appID + " is ready.");
-                        //add game with at least one full set
-                        Bot.addGameReady(appID);
-                        continue;
-                    }
-                    if (cardsString.Contains("tasks"))
-                    {
-                        // steamcommunity badge, ignore.
-                        continue;
-                    }
-                    if (!cardsString.Contains(" "))
-                    {
-                        Bot.ArchiLogger.LogGenericInfo("Skipped one, no space.");
-                        //not a normal badge or lvl 5 and maybe cards or lvl <5 and no cards
-                        continue;
-                    }
-                    string[] cardSplit = cardsString.Split(' ');
-                    if (cardSplit.Length<5)
-                    {
-                        Bot.ArchiLogger.LogGenericInfo("Skipped one, not enough parts.");
-                        //not a normal badge or lvl 5 and maybe cards or lvl <5 and no cards
-                        continue;
-                    }
+                        index++;
+                        if (steamLink.Length <= index)
+                        {
+                            Bot.ArchiLogger.LogNullError(nameof(steamLink.Length));
+                            continue; //just ignore this game
+                        }
 
-                    uint have, max;
-                    if(!uint.TryParse(cardSplit[0], out have) || !uint.TryParse(cardSplit[2], out max) || max<5)
+                        steamLink = steamLink.Substring(index);
+                        uint appID;
+                        if (!uint.TryParse(steamLink, out appID) || (appID == 0))
+                        {
+                            Bot.ArchiLogger.LogNullError(nameof(appID));
+                            continue; //just ignore this game
+                        }
+
+                        // we now have the appid, try to get the amount of cards needed for badge.
+                        htmlNode2 = htmlNode.SelectSingleNode(".//div[@class='badge_progress_info']");
+                        if (htmlNode2 == null)
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Skipped " + appID + ", no badge_progress_info");
+                            continue;
+                        }
+
+                        string cardsString = htmlNode2.InnerText;
+                        if (cardsString.Contains("Ready"))
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Badge for " + appID + " is ready.");
+                            //add game with at least one full set
+                            Bot.addGameReady(appID);
+                            continue;
+                        }
+                        if (cardsString.Contains("tasks"))
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Steamcommunitybadge ignored");
+                            // steamcommunity badge, ignore.
+                            continue;
+                        }
+                        if (!cardsString.Contains(" "))
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Skipped " + appID + ", no space.");
+                            //not a normal badge or lvl 5 and maybe cards or lvl <5 and no cards
+                            continue;
+                        }
+
+                        string[] cardSplit = cardsString.Split(' ');
+                        if (cardSplit.Length < 5)
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Skipped " + appID + ", not enough parts.");
+                            //not a normal badge or lvl 5 and maybe cards or lvl <5 and no cards
+                            continue;
+                        }
+
+                        uint have, max;
+                        if (!uint.TryParse(cardSplit[0], out have) || !uint.TryParse(cardSplit[2], out max) || max < 5)
                         //there are minimum 5 cards per set, if its different somethings fishy.
-                    {
-                        Bot.ArchiLogger.LogNullError(nameof(cardSplit));
-                        continue; //just ignore this game
+                        {
+                            Bot.ArchiLogger.LogNullError(nameof(cardSplit));
+                            continue; //just ignore this game
+                        }
+                        if (have == 0)
+                        {
+                            Bot.ArchiLogger.LogGenericTrace("Skipped " + appID + ", no cards.");
+                            //we dont have cards of that game, so we dont care.
+                            continue;
+                        }
+                        Bot.addGameMixed(appID, max);
+                        Bot.ArchiLogger.LogGenericTrace("Badge for " + appID + " | " + have + " of " + max + " cards in inventory.");
                     }
-                    if(have==0)
-                    {
-                        //we dont have cards of that game, so we dont care.
-                        continue;
-                    }
-                    Bot.addGameMixed(appID, max);
-                    Bot.ArchiLogger.LogGenericInfo("Badge for " + appID + " | " + have + " of " + max + " cards in inventory.");
                 }
-
             }
-
-			if (htmlDocument == null) {
-				Bot.ArchiLogger.LogNullError(nameof(htmlDocument));
-				return;
-			}
 
 			HtmlNodeCollection htmlNodes = htmlDocument.DocumentNode.SelectNodes("//div[@class='badge_title_stats']");
 			if (htmlNodes == null) { // No eligible badges
