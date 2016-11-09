@@ -1615,6 +1615,11 @@ namespace ArchiSteamFarm {
                     //just send all cards, that are defenitly not needed for sets.
                     rest = true;
                     break;
+                case "UNKNOWN":
+                    //just send normal cards, we do not have information about.
+                    inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.TradingCard));
+                    inventory.RemoveWhere(item => (botFrom.GamesMixed.ContainsKey(item.RealAppID)));
+                    break;
                 default:
                     return "Unknown mode " + mode + "!";
 
