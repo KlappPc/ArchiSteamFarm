@@ -1643,7 +1643,8 @@ namespace ArchiSteamFarm {
             }
             if (fullsets || sets || rest) {// only works for normal cards.
                 inventory.RemoveWhere(item => (item.Type != Steam.Item.EType.TradingCard));
-
+                //remove all we have no info about.
+                inventory.RemoveWhere(item => (!botFrom.GamesMixed.ContainsKey(item.RealAppID)));
                 //first create a map: for each game, count the amount for each classid
                 // we use int for the amount, so we can use sum<>.
                 Dictionary<uint, Dictionary<ulong, int>> amountMap = new Dictionary<uint, Dictionary<ulong, int>>();
