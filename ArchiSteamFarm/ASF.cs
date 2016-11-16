@@ -42,6 +42,20 @@ namespace ArchiSteamFarm {
 			}
 		}
 
+		internal enum EUserInputType : byte {
+			Unknown,
+			DeviceID,
+			Login,
+			Password,
+			PhoneNumber,
+			SMS,
+			SteamGuard,
+			SteamParentalPIN,
+			RevocationCode,
+			TwoFactorAuthentication,
+			WCFHostname
+		}
+
 		internal static readonly ArchiLogger ArchiLogger = new ArchiLogger(SharedInfo.ASF);
 
 		private static readonly ConcurrentDictionary<Bot, DateTime> LastWriteTimes = new ConcurrentDictionary<Bot, DateTime>();
@@ -212,6 +226,30 @@ namespace ArchiSteamFarm {
 				ArchiLogger.LogGenericInfo("Exiting...");
 				await Task.Delay(5000).ConfigureAwait(false);
 				Program.Exit();
+			}
+		}
+
+		internal static void InitBots() {
+			if (Bot.Bots.Count != 0) {
+				return;
+			}
+
+			// Before attempting to connect, initialize our list of CMs
+			Bot.InitializeCMs(Program.GlobalDatabase.CellID, Program.GlobalDatabase.ServerListProvider);
+
+			foreach (string botName in Directory.EnumerateFiles(SharedInfo.ConfigDirectory, "*.json").Select(Path.GetFileNameWithoutExtension)) {
+				switch (botName) {
+					case SharedInfo.ASF:
+					case "example":
+					case "minimal":
+						continue;
+				}
+
+				new Bot(botName).Forget();
+			}
+
+			if (Bot.Bots.Count == 0) {
+				ArchiLogger.LogGenericWarning("No bots are defined, did you forget to configure your ASF?");
 			}
 		}
 

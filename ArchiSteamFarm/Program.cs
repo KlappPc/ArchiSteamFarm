@@ -34,10 +34,11 @@ using System.Threading.Tasks;
 
 namespace ArchiSteamFarm {
 	internal static class Program {
+		[Flags]
 		internal enum EMode : byte {
-			Normal, // Standard most common usage
-			Client, // WCF client only
-			Server // Normal + WCF server
+			Normal = 0, // Standard most common usage
+			Client = 1, // WCF client
+			Server = 2 // WCF server
 		}
 
 		private static readonly object ConsoleLock = new object();
@@ -74,8 +75,8 @@ namespace ArchiSteamFarm {
 			Environment.Exit(0);
 		}
 
-		internal static string GetUserInput(SharedInfo.EUserInputType userInputType, string botName = SharedInfo.ASF, string extraInformation = null) {
-			if (userInputType == SharedInfo.EUserInputType.Unknown) {
+		internal static string GetUserInput(ASF.EUserInputType userInputType, string botName = SharedInfo.ASF, string extraInformation = null) {
+			if (userInputType == ASF.EUserInputType.Unknown) {
 				return null;
 			}
 
@@ -88,35 +89,35 @@ namespace ArchiSteamFarm {
 			lock (ConsoleLock) {
 				Logging.OnUserInputStart();
 				switch (userInputType) {
-					case SharedInfo.EUserInputType.DeviceID:
+					case ASF.EUserInputType.DeviceID:
 						Console.Write("<" + botName + "> Please enter your Device ID (including \"android:\"): ");
 						break;
-					case SharedInfo.EUserInputType.Login:
+					case ASF.EUserInputType.Login:
 						Console.Write("<" + botName + "> Please enter your login: ");
 						break;
-					case SharedInfo.EUserInputType.Password:
+					case ASF.EUserInputType.Password:
 						Console.Write("<" + botName + "> Please enter your password: ");
 						break;
-					case SharedInfo.EUserInputType.PhoneNumber:
+					case ASF.EUserInputType.PhoneNumber:
 						Console.Write("<" + botName + "> Please enter your full phone number (e.g. +1234567890): ");
 						break;
-					case SharedInfo.EUserInputType.SMS:
+					case ASF.EUserInputType.SMS:
 						Console.Write("<" + botName + "> Please enter SMS code sent on your mobile: ");
 						break;
-					case SharedInfo.EUserInputType.SteamGuard:
+					case ASF.EUserInputType.SteamGuard:
 						Console.Write("<" + botName + "> Please enter the auth code sent to your email: ");
 						break;
-					case SharedInfo.EUserInputType.SteamParentalPIN:
+					case ASF.EUserInputType.SteamParentalPIN:
 						Console.Write("<" + botName + "> Please enter steam parental PIN: ");
 						break;
-					case SharedInfo.EUserInputType.RevocationCode:
+					case ASF.EUserInputType.RevocationCode:
 						Console.WriteLine("<" + botName + "> PLEASE WRITE DOWN YOUR REVOCATION CODE: " + extraInformation);
 						Console.Write("<" + botName + "> Hit enter once ready...");
 						break;
-					case SharedInfo.EUserInputType.TwoFactorAuthentication:
+					case ASF.EUserInputType.TwoFactorAuthentication:
 						Console.Write("<" + botName + "> Please enter your 2 factor auth code from your authenticator app: ");
 						break;
-					case SharedInfo.EUserInputType.WCFHostname:
+					case ASF.EUserInputType.WCFHostname:
 						Console.Write("<" + botName + "> Please enter your WCF hostname: ");
 						break;
 					default:
@@ -196,10 +197,10 @@ namespace ArchiSteamFarm {
 					case "":
 						break;
 					case "--client":
-						Mode = EMode.Client;
+						Mode |= EMode.Client;
 						break;
 					case "--server":
-						Mode = EMode.Server;
+						Mode |= EMode.Server;
 						break;
 					default:
 						if (arg.StartsWith("--", StringComparison.Ordinal)) {
@@ -224,11 +225,12 @@ namespace ArchiSteamFarm {
 					case "":
 						break;
 					case "--client":
-						Mode = EMode.Client;
+						Mode |= EMode.Client;
 						break;
 					case "--server":
-						Mode = EMode.Server;
+						Mode |= EMode.Server;
 						WCF.StartServer();
+						ASF.InitBots();
 						break;
 					default:
 						if (arg.StartsWith("--", StringComparison.Ordinal)) {
@@ -239,7 +241,7 @@ namespace ArchiSteamFarm {
 							break;
 						}
 
-						if (Mode != EMode.Client) {
+						if (!Mode.HasFlag(EMode.Client)) {
 							ASF.ArchiLogger.LogGenericWarning("Ignoring command because --client wasn't specified: " + arg);
 							break;
 						}
@@ -329,37 +331,12 @@ namespace ArchiSteamFarm {
 			}
 
 			// If we ran ASF as a client, we're done by now
-			if (Mode == EMode.Client) {
+			if (Mode.HasFlag(EMode.Client) && !Mode.HasFlag(EMode.Server)) {
 				Exit();
 			}
 
-			// From now on it's server mode
-			if (!Directory.Exists(SharedInfo.ConfigDirectory)) {
-				ASF.ArchiLogger.LogGenericError("Config directory doesn't exist!");
-				Thread.Sleep(5000);
-				Exit(1);
-			}
-
 			ASF.CheckForUpdate().Wait();
-
-			// Before attempting to connect, initialize our list of CMs
-			Bot.InitializeCMs(GlobalDatabase.CellID, GlobalDatabase.ServerListProvider);
-
-			foreach (string botName in Directory.EnumerateFiles(SharedInfo.ConfigDirectory, "*.json").Select(Path.GetFileNameWithoutExtension)) {
-				switch (botName) {
-					case SharedInfo.ASF:
-					case "example":
-					case "minimal":
-						continue;
-				}
-
-				new Bot(botName).Forget();
-			}
-
-			if (Bot.Bots.Count == 0) {
-				ASF.ArchiLogger.LogGenericWarning("No bots are defined, did you forget to configure your ASF?");
-			}
-
+			ASF.InitBots();
 			ASF.InitFileWatcher();
 		}
 

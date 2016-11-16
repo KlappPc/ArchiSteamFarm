@@ -48,7 +48,7 @@ namespace ArchiSteamFarm {
 
 		internal static void Init() {
 			if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHostname)) {
-				Program.GlobalConfig.WCFHostname = Program.GetUserInput(SharedInfo.EUserInputType.WCFHostname);
+				Program.GlobalConfig.WCFHostname = Program.GetUserInput(ASF.EUserInputType.WCFHostname);
 				if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHostname)) {
 					return;
 				}
@@ -87,7 +87,7 @@ namespace ArchiSteamFarm {
 		}
 
 		internal void StartServer() {
-			if (ServiceHost != null) {
+			if (IsServerRunning) {
 				return;
 			}
 
@@ -104,16 +104,17 @@ namespace ArchiSteamFarm {
 				ServiceHost.AddServiceEndpoint(typeof(IWCF), new BasicHttpBinding(), string.Empty);
 
 				ServiceHost.Open();
+				ASF.ArchiLogger.LogGenericInfo("WCF server ready!");
+			} catch (AddressAccessDeniedException) {
+				ASF.ArchiLogger.LogGenericError("WCF service could not be started because of AddressAccessDeniedException!");
+				ASF.ArchiLogger.LogGenericWarning("If you want to use WCF service provided by ASF, consider starting ASF as administrator, or giving proper permissions!");
 			} catch (Exception e) {
 				ASF.ArchiLogger.LogGenericException(e);
-				return;
 			}
-
-			ASF.ArchiLogger.LogGenericInfo("WCF server ready!");
 		}
 
 		internal void StopServer() {
-			if (ServiceHost == null) {
+			if (!IsServerRunning) {
 				return;
 			}
 
