@@ -22,15 +22,15 @@
 
 */
 
-using HtmlAgilityPack;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using System.Xml;
+using HtmlAgilityPack;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace ArchiSteamFarm {
 	internal sealed class WebBrowser {
@@ -43,32 +43,6 @@ namespace ArchiSteamFarm {
 
 		private readonly ArchiLogger ArchiLogger;
 		private readonly HttpClient HttpClient;
-
-		internal static void Init() {
-			// Set max connection limit from default of 2 to desired value
-			ServicePointManager.DefaultConnectionLimit = MaxConnections;
-
-			// Set max idle time from default of 100 seconds (100 * 1000) to desired value
-			ServicePointManager.MaxServicePointIdleTime = MaxIdleTime * 1000;
-
-			// Don't use Expect100Continue, we're sure about our POSTs, save some TCP packets
-			ServicePointManager.Expect100Continue = false;
-
-#if !__MonoCS__
-			// We run Windows-compiled ASF on both Windows and Mono. Normally we'd simply put code in the if
-			// However, if we did that, then we would still crash on Mono due to potentially calling non-existing methods
-			// Therefore, call mono-incompatible options in their own function to avoid that, and just leave the function call here
-			// When compiling on Mono, this section is omitted entirely as we never run Mono-compiled ASF on Windows
-			// Moreover, Mono compiler doesn't even include ReusePort field in ServicePointManager, so it's crucial to avoid compilation error
-			if (Runtime.IsRuntimeSupported && !Runtime.IsRunningOnMono) {
-				InitNonMonoBehaviour();
-			}
-#endif
-		}
-
-#if !__MonoCS__
-		private static void InitNonMonoBehaviour() => ServicePointManager.ReusePort = true;
-#endif
 
 		internal WebBrowser(ArchiLogger archiLogger) {
 			if (archiLogger == null) {
@@ -90,42 +64,26 @@ namespace ArchiSteamFarm {
 			HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd("ArchiSteamFarm/" + SharedInfo.Version);
 		}
 
-		internal async Task<bool> UrlHeadRetry(string request, string referer = null) {
-			if (string.IsNullOrEmpty(request)) {
-				ArchiLogger.LogNullError(nameof(request));
-				return false;
+		internal static void Init() {
+			// Set max connection limit from default of 2 to desired value
+			ServicePointManager.DefaultConnectionLimit = MaxConnections;
+
+			// Set max idle time from default of 100 seconds (100 * 1000) to desired value
+			ServicePointManager.MaxServicePointIdleTime = MaxIdleTime * 1000;
+
+			// Don't use Expect100Continue, we're sure about our POSTs, save some TCP packets
+			ServicePointManager.Expect100Continue = false;
+
+#if !__MonoCS__
+			// We run Windows-compiled ASF on both Windows and Mono. Normally we'd simply put code in the if
+			// However, if we did that, then we would still crash on Mono due to potentially calling non-existing methods
+			// Therefore, call mono-incompatible options in their own function to avoid that, and just leave the function call here
+			// When compiling on Mono, this section is omitted entirely as we never run Mono-compiled ASF on Windows
+			// Moreover, Mono compiler doesn't even include ReusePort field in ServicePointManager, so it's crucial to avoid compilation error
+			if (Runtime.IsRuntimeSupported && !Runtime.IsRunningOnMono) {
+				InitNonMonoBehaviour();
 			}
-
-			bool result = false;
-			for (byte i = 0; (i < MaxRetries) && !result; i++) {
-				result = await UrlHead(request, referer).ConfigureAwait(false);
-			}
-
-			if (result) {
-				return true;
-			}
-
-			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
-			return false;
-		}
-
-		internal async Task<Uri> UrlHeadToUriRetry(string request, string referer = null) {
-			if (string.IsNullOrEmpty(request)) {
-				ArchiLogger.LogNullError(nameof(request));
-				return null;
-			}
-
-			Uri result = null;
-			for (byte i = 0; (i < MaxRetries) && (result == null); i++) {
-				result = await UrlHeadToUri(request, referer).ConfigureAwait(false);
-			}
-
-			if (result != null) {
-				return result;
-			}
-
-			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
-			return null;
+#endif
 		}
 
 		internal async Task<byte[]> UrlGetToBytesRetry(string request, string referer = null) {
@@ -223,6 +181,55 @@ namespace ArchiSteamFarm {
 			return null;
 		}
 
+		internal async Task<bool> UrlHeadRetry(string request, string referer = null) {
+			if (string.IsNullOrEmpty(request)) {
+				ArchiLogger.LogNullError(nameof(request));
+				return false;
+			}
+
+			bool result = false;
+			for (byte i = 0; (i < MaxRetries) && !result; i++) {
+				result = await UrlHead(request, referer).ConfigureAwait(false);
+			}
+
+			if (result) {
+				return true;
+			}
+
+			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			return false;
+		}
+
+		internal async Task<Uri> UrlHeadToUriRetry(string request, string referer = null) {
+			if (string.IsNullOrEmpty(request)) {
+				ArchiLogger.LogNullError(nameof(request));
+				return null;
+			}
+
+			Uri result = null;
+			for (byte i = 0; (i < MaxRetries) && (result == null); i++) {
+				result = await UrlHeadToUri(request, referer).ConfigureAwait(false);
+			}
+
+			if (result != null) {
+				return result;
+			}
+
+			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			return null;
+		}
+
+		internal async Task<bool> UrlPost(string request, IEnumerable<KeyValuePair<string, string>> data = null, string referer = null) {
+			if (string.IsNullOrEmpty(request)) {
+				ArchiLogger.LogNullError(nameof(request));
+				return false;
+			}
+
+			using (HttpResponseMessage response = await UrlPostToResponse(request, data, referer).ConfigureAwait(false)) {
+				return response != null;
+			}
+		}
+
 		internal async Task<bool> UrlPostRetry(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
 				ArchiLogger.LogNullError(nameof(request));
@@ -240,6 +247,22 @@ namespace ArchiSteamFarm {
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
 			return false;
+		}
+
+		internal async Task<HtmlDocument> UrlPostToHtmlDocumentRetry(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+			if (string.IsNullOrEmpty(request)) {
+				ArchiLogger.LogNullError(nameof(request));
+				return null;
+			}
+
+			string content = await UrlPostToContentRetry(request, data, referer).ConfigureAwait(false);
+			if (string.IsNullOrEmpty(content)) {
+				return null;
+			}
+
+			HtmlDocument htmlDocument = new HtmlDocument();
+			htmlDocument.LoadHtml(WebUtility.HtmlDecode(content));
+			return htmlDocument;
 		}
 
 		internal async Task<T> UrlPostToJsonResultRetry<T>(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
@@ -260,6 +283,10 @@ namespace ArchiSteamFarm {
 				return default(T);
 			}
 		}
+
+#if !__MonoCS__
+		private static void InitNonMonoBehaviour() => ServicePointManager.ReusePort = true;
+#endif
 
 		private async Task<byte[]> UrlGetToBytes(string request, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
@@ -409,17 +436,6 @@ namespace ArchiSteamFarm {
 
 			using (HttpResponseMessage response = await UrlHeadToResponse(request, referer).ConfigureAwait(false)) {
 				return response?.RequestMessage.RequestUri;
-			}
-		}
-
-		private async Task<bool> UrlPost(string request, IEnumerable<KeyValuePair<string, string>> data = null, string referer = null) {
-			if (string.IsNullOrEmpty(request)) {
-				ArchiLogger.LogNullError(nameof(request));
-				return false;
-			}
-
-			using (HttpResponseMessage response = await UrlPostToResponse(request, data, referer).ConfigureAwait(false)) {
-				return response != null;
 			}
 		}
 

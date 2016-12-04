@@ -37,61 +37,26 @@ namespace ArchiSteamFarm {
 	[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 	[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
 	internal sealed class MobileAuthenticator : IDisposable {
-		internal sealed class Confirmation {
-			internal readonly uint ID;
-			internal readonly ulong Key;
-			internal readonly Steam.ConfirmationDetails.EType Type;
-
-			internal Confirmation(uint id, ulong key, Steam.ConfirmationDetails.EType type) {
-				if ((id == 0) || (key == 0) || (type == Steam.ConfirmationDetails.EType.Unknown)) {
-					throw new ArgumentNullException(nameof(id) + " || " + nameof(key) + " || " + nameof(type));
-				}
-
-				ID = id;
-				Key = key;
-				Type = type;
-			}
-		}
-
 		private const byte CodeDigits = 5;
 		private const byte CodeInterval = 30;
 
-		private static readonly char[] CodeCharacters = {
-			'2', '3', '4', '5', '6', '7', '8', '9', 'B', 'C',
-			'D', 'F', 'G', 'H', 'J', 'K', 'M', 'N', 'P', 'Q',
-			'R', 'T', 'V', 'W', 'X', 'Y'
-		};
-
+		private static readonly char[] CodeCharacters = { '2', '3', '4', '5', '6', '7', '8', '9', 'B', 'C', 'D', 'F', 'G', 'H', 'J', 'K', 'M', 'N', 'P', 'Q', 'R', 'T', 'V', 'W', 'X', 'Y' };
 		private static readonly SemaphoreSlim TimeSemaphore = new SemaphoreSlim(1);
 
 		private static short? SteamTimeDifference;
 
+		internal bool HasCorrectDeviceID => !string.IsNullOrEmpty(DeviceID) && !DeviceID.Equals("ERROR"); // "ERROR" is being used by SteamDesktopAuthenticator
+
 		private readonly SemaphoreSlim ConfirmationsSemaphore = new SemaphoreSlim(1);
 
-#pragma warning disable 649
-		[JsonProperty(PropertyName = "shared_secret", Required = Required.Always)]
-		private readonly string SharedSecret;
-
-		[JsonProperty(PropertyName = "identity_secret", Required = Required.Always)]
-		private readonly string IdentitySecret;
-#pragma warning restore 649
+		private Bot Bot;
 
 		[JsonProperty(PropertyName = "device_id")]
 		private string DeviceID;
 
-		private Bot Bot;
-
-		internal bool HasCorrectDeviceID => !string.IsNullOrEmpty(DeviceID) && !DeviceID.Equals("ERROR"); // "ERROR" is being used by SteamDesktopAuthenticator
-
 		private MobileAuthenticator() { }
 
-		internal void Init(Bot bot) {
-			if (bot == null) {
-				throw new ArgumentNullException(nameof(bot));
-			}
-
-			Bot = bot;
-		}
+		public void Dispose() => ConfirmationsSemaphore.Dispose();
 
 		internal void CorrectDeviceID(string deviceID) {
 			if (string.IsNullOrEmpty(deviceID)) {
@@ -102,56 +67,14 @@ namespace ArchiSteamFarm {
 			DeviceID = deviceID;
 		}
 
-		internal async Task<bool> HandleConfirmations(HashSet<Confirmation> confirmations, bool accept) {
-			if ((confirmations == null) || (confirmations.Count == 0)) {
-				Bot.ArchiLogger.LogNullError(nameof(confirmations));
-				return false;
+		internal async Task<string> GenerateToken() {
+			uint time = await GetSteamTime().ConfigureAwait(false);
+			if (time != 0) {
+				return GenerateTokenForTime(time);
 			}
 
-			if (!HasCorrectDeviceID) {
-				Bot.ArchiLogger.LogGenericWarning("Can't execute properly due to invalid DeviceID!");
-				return false;
-			}
-
-			await ConfirmationsSemaphore.WaitAsync().ConfigureAwait(false);
-
-			try {
-				uint time = await GetSteamTime().ConfigureAwait(false);
-				if (time == 0) {
-					Bot.ArchiLogger.LogNullError(nameof(time));
-					return false;
-				}
-
-				string confirmationHash = GenerateConfirmationKey(time, "conf");
-				if (string.IsNullOrEmpty(confirmationHash)) {
-					Bot.ArchiLogger.LogNullError(nameof(confirmationHash));
-					return false;
-				}
-
-				bool? result = await Bot.ArchiWebHandler.HandleConfirmations(DeviceID, confirmationHash, time, confirmations, accept).ConfigureAwait(false);
-				if (!result.HasValue) { // Request timed out
-					return false;
-				}
-
-				if (result.Value) { // Request succeeded
-					return true;
-				}
-
-				// Our multi request failed, this is almost always Steam fuckup that happens randomly
-				// In this case, we'll accept all pending confirmations one-by-one, synchronously (as Steam can't handle them in parallel)
-				// We totally ignore actual result returned by those calls, abort only if request timed out
-
-				foreach (Confirmation confirmation in confirmations) {
-					bool? confirmationResult = await Bot.ArchiWebHandler.HandleConfirmation(DeviceID, confirmationHash, time, confirmation.ID, confirmation.Key, accept).ConfigureAwait(false);
-					if (!confirmationResult.HasValue) {
-						return false;
-					}
-				}
-
-				return true;
-			} finally {
-				ConfirmationsSemaphore.Release();
-			}
+			Bot.ArchiLogger.LogNullError(nameof(time));
+			return null;
 		}
 
 		internal async Task<Steam.ConfirmationDetails> GetConfirmationDetails(Confirmation confirmation) {
@@ -183,16 +106,6 @@ namespace ArchiSteamFarm {
 			}
 
 			return response;
-		}
-
-		internal async Task<string> GenerateToken() {
-			uint time = await GetSteamTime().ConfigureAwait(false);
-			if (time != 0) {
-				return GenerateTokenForTime(time);
-			}
-
-			Bot.ArchiLogger.LogNullError(nameof(time));
-			return null;
 		}
 
 		internal async Task<HashSet<Confirmation>> GetConfirmations() {
@@ -271,25 +184,97 @@ namespace ArchiSteamFarm {
 			return result;
 		}
 
-		private async Task<uint> GetSteamTime() {
-			if (SteamTimeDifference.HasValue) {
-				return (uint) (Utilities.GetUnixTime() + SteamTimeDifference.GetValueOrDefault());
+		internal async Task<bool> HandleConfirmations(HashSet<Confirmation> confirmations, bool accept) {
+			if ((confirmations == null) || (confirmations.Count == 0)) {
+				Bot.ArchiLogger.LogNullError(nameof(confirmations));
+				return false;
 			}
 
-			await TimeSemaphore.WaitAsync().ConfigureAwait(false);
+			if (!HasCorrectDeviceID) {
+				Bot.ArchiLogger.LogGenericWarning("Can't execute properly due to invalid DeviceID!");
+				return false;
+			}
+
+			await ConfirmationsSemaphore.WaitAsync().ConfigureAwait(false);
 
 			try {
-				if (!SteamTimeDifference.HasValue) {
-					uint serverTime = Bot.ArchiWebHandler.GetServerTime();
-					if (serverTime != 0) {
-						SteamTimeDifference = (short) (serverTime - Utilities.GetUnixTime());
+				uint time = await GetSteamTime().ConfigureAwait(false);
+				if (time == 0) {
+					Bot.ArchiLogger.LogNullError(nameof(time));
+					return false;
+				}
+
+				string confirmationHash = GenerateConfirmationKey(time, "conf");
+				if (string.IsNullOrEmpty(confirmationHash)) {
+					Bot.ArchiLogger.LogNullError(nameof(confirmationHash));
+					return false;
+				}
+
+				bool? result = await Bot.ArchiWebHandler.HandleConfirmations(DeviceID, confirmationHash, time, confirmations, accept).ConfigureAwait(false);
+				if (!result.HasValue) { // Request timed out
+					return false;
+				}
+
+				if (result.Value) { // Request succeeded
+					return true;
+				}
+
+				// Our multi request failed, this is almost always Steam fuckup that happens randomly
+				// In this case, we'll accept all pending confirmations one-by-one, synchronously (as Steam can't handle them in parallel)
+				// We totally ignore actual result returned by those calls, abort only if request timed out
+
+				foreach (Confirmation confirmation in confirmations) {
+					bool? confirmationResult = await Bot.ArchiWebHandler.HandleConfirmation(DeviceID, confirmationHash, time, confirmation.ID, confirmation.Key, accept).ConfigureAwait(false);
+					if (!confirmationResult.HasValue) {
+						return false;
 					}
 				}
+
+				return true;
 			} finally {
-				TimeSemaphore.Release();
+				ConfirmationsSemaphore.Release();
+			}
+		}
+
+		internal void Init(Bot bot) {
+			if (bot == null) {
+				throw new ArgumentNullException(nameof(bot));
 			}
 
-			return (uint) (Utilities.GetUnixTime() + SteamTimeDifference.GetValueOrDefault());
+			Bot = bot;
+		}
+
+		private string GenerateConfirmationKey(uint time, string tag = null) {
+			if (time == 0) {
+				Bot.ArchiLogger.LogNullError(nameof(time));
+				return null;
+			}
+
+			byte[] identitySecret = Convert.FromBase64String(IdentitySecret);
+
+			byte bufferSize = 8;
+			if (!string.IsNullOrEmpty(tag)) {
+				bufferSize += (byte) Math.Min(32, tag.Length);
+			}
+
+			byte[] timeArray = BitConverter.GetBytes((long) time);
+			if (BitConverter.IsLittleEndian) {
+				Array.Reverse(timeArray);
+			}
+
+			byte[] buffer = new byte[bufferSize];
+
+			Array.Copy(timeArray, buffer, 8);
+			if (!string.IsNullOrEmpty(tag)) {
+				Array.Copy(Encoding.UTF8.GetBytes(tag), 0, buffer, 8, bufferSize - 8);
+			}
+
+			byte[] hash;
+			using (HMACSHA1 hmac = new HMACSHA1(identitySecret)) {
+				hash = hmac.ComputeHash(buffer);
+			}
+
+			return Convert.ToBase64String(hash);
 		}
 
 		private string GenerateTokenForTime(uint time) {
@@ -335,39 +320,49 @@ namespace ArchiSteamFarm {
 			return code.ToString();
 		}
 
-		private string GenerateConfirmationKey(uint time, string tag = null) {
-			if (time == 0) {
-				Bot.ArchiLogger.LogNullError(nameof(time));
-				return null;
+		private async Task<uint> GetSteamTime() {
+			if (SteamTimeDifference.HasValue) {
+				return (uint) (Utilities.GetUnixTime() + SteamTimeDifference.GetValueOrDefault());
 			}
 
-			byte[] identitySecret = Convert.FromBase64String(IdentitySecret);
+			await TimeSemaphore.WaitAsync().ConfigureAwait(false);
 
-			byte bufferSize = 8;
-			if (!string.IsNullOrEmpty(tag)) {
-				bufferSize += (byte) Math.Min(32, tag.Length);
+			try {
+				if (!SteamTimeDifference.HasValue) {
+					uint serverTime = Bot.ArchiWebHandler.GetServerTime();
+					if (serverTime != 0) {
+						SteamTimeDifference = (short) (serverTime - Utilities.GetUnixTime());
+					}
+				}
+			} finally {
+				TimeSemaphore.Release();
 			}
 
-			byte[] timeArray = BitConverter.GetBytes((long) time);
-			if (BitConverter.IsLittleEndian) {
-				Array.Reverse(timeArray);
-			}
-
-			byte[] buffer = new byte[bufferSize];
-
-			Array.Copy(timeArray, buffer, 8);
-			if (!string.IsNullOrEmpty(tag)) {
-				Array.Copy(Encoding.UTF8.GetBytes(tag), 0, buffer, 8, bufferSize - 8);
-			}
-
-			byte[] hash;
-			using (HMACSHA1 hmac = new HMACSHA1(identitySecret)) {
-				hash = hmac.ComputeHash(buffer);
-			}
-
-			return Convert.ToBase64String(hash);
+			return (uint) (Utilities.GetUnixTime() + SteamTimeDifference.GetValueOrDefault());
 		}
 
-		public void Dispose() => ConfirmationsSemaphore.Dispose();
+		internal sealed class Confirmation {
+			internal readonly uint ID;
+			internal readonly ulong Key;
+			internal readonly Steam.ConfirmationDetails.EType Type;
+
+			internal Confirmation(uint id, ulong key, Steam.ConfirmationDetails.EType type) {
+				if ((id == 0) || (key == 0) || (type == Steam.ConfirmationDetails.EType.Unknown)) {
+					throw new ArgumentNullException(nameof(id) + " || " + nameof(key) + " || " + nameof(type));
+				}
+
+				ID = id;
+				Key = key;
+				Type = type;
+			}
+		}
+
+#pragma warning disable 649
+		[JsonProperty(PropertyName = "shared_secret", Required = Required.Always)]
+		private readonly string SharedSecret;
+
+		[JsonProperty(PropertyName = "identity_secret", Required = Required.Always)]
+		private readonly string IdentitySecret;
+#pragma warning restore 649
 	}
 }

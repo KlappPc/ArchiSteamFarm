@@ -31,28 +31,6 @@ using ArchiSteamFarm.JSON;
 
 namespace ArchiSteamFarm {
 	internal sealed class Trading : IDisposable {
-		private sealed class ParseTradeResult {
-			internal enum EResult : byte {
-				Unknown,
-				AcceptedWithItemLose,
-				AcceptedWithoutItemLose,
-				RejectedTemporarily,
-				RejectedPermanently
-			}
-
-			internal readonly ulong TradeID;
-			internal readonly EResult Result;
-
-			internal ParseTradeResult(ulong tradeID, EResult result) {
-				if ((tradeID == 0) || (result == EResult.Unknown)) {
-					throw new ArgumentNullException(nameof(tradeID) + " || " + nameof(result));
-				}
-
-				TradeID = tradeID;
-				Result = result;
-			}
-		}
-
 		internal const byte MaxItemsPerTrade = 150; // This is due to limit on POST size in WebBrowser
 		internal const byte MaxTradesPerAccount = 5; // This is limit introduced by Valve
 
@@ -62,15 +40,7 @@ namespace ArchiSteamFarm {
 		private readonly ConcurrentHashSet<ulong> IgnoredTrades = new ConcurrentHashSet<ulong>();
 		private readonly SemaphoreSlim TradesSemaphore = new SemaphoreSlim(1);
 
-		private byte ParsingTasks;
-
-		internal static async Task LimitInventoryRequestsAsync() {
-			await InventorySemaphore.WaitAsync().ConfigureAwait(false);
-			Task.Run(async () => {
-				await Task.Delay(Program.GlobalConfig.InventoryLimiterDelay * 1000).ConfigureAwait(false);
-				InventorySemaphore.Release();
-			}).Forget();
-		}
+		private bool ParsingScheduled;
 
 		internal Trading(Bot bot) {
 			if (bot == null) {
@@ -85,29 +55,42 @@ namespace ArchiSteamFarm {
 			TradesSemaphore.Dispose();
 		}
 
-		internal void OnDisconnected() => IgnoredTrades.ClearAndTrim();
-
 		internal async Task CheckTrades() {
+			// We aim to have a maximum of 2 tasks, one already parsing, and one waiting in the queue
+			// This way we can call this function as many times as needed e.g. because of Steam events
 			lock (TradesSemaphore) {
-				if (ParsingTasks >= 2) {
+				if (ParsingScheduled) {
 					return;
 				}
 
-				ParsingTasks++;
+				ParsingScheduled = true;
 			}
 
 			await TradesSemaphore.WaitAsync().ConfigureAwait(false);
 
-			await ParseActiveTrades().ConfigureAwait(false);
-			lock (TradesSemaphore) {
-				ParsingTasks--;
-			}
+			try {
+				lock (TradesSemaphore) {
+					ParsingScheduled = false;
+				}
 
-			TradesSemaphore.Release();
+				await ParseActiveTrades().ConfigureAwait(false);
+			} finally {
+				TradesSemaphore.Release();
+			}
 		}
 
+		internal static async Task LimitInventoryRequestsAsync() {
+			await InventorySemaphore.WaitAsync().ConfigureAwait(false);
+			Task.Run(async () => {
+				await Task.Delay(Program.GlobalConfig.InventoryLimiterDelay * 1000).ConfigureAwait(false);
+				InventorySemaphore.Release();
+			}).Forget();
+		}
+
+		internal void OnDisconnected() => IgnoredTrades.ClearAndTrim();
+
 		private async Task ParseActiveTrades() {
-			if (string.IsNullOrEmpty(Bot.BotConfig.SteamApiKey)) {
+			if (!Bot.HasValidApiKey) {
 				return;
 			}
 
@@ -187,7 +170,7 @@ namespace ArchiSteamFarm {
 			}
 
 			// Always accept trades from SteamMasterID
-			if ((tradeOffer.OtherSteamID64 != 0) && (tradeOffer.OtherSteamID64 == Bot.BotConfig.SteamMasterID)) {
+			if ((tradeOffer.OtherSteamID64 != 0) && ((tradeOffer.OtherSteamID64 == Bot.BotConfig.SteamMasterID) || (tradeOffer.OtherSteamID64 == Program.GlobalConfig.SteamOwnerID))) {
 				return new ParseTradeResult(tradeOffer.TradeOfferID, tradeOffer.ItemsToGive.Count > 0 ? ParseTradeResult.EResult.AcceptedWithItemLose : ParseTradeResult.EResult.AcceptedWithoutItemLose);
 			}
 
@@ -315,6 +298,29 @@ namespace ArchiSteamFarm {
 			// Trade is worth for us if the difference is greater than 0
 			// If not, we assume that the trade might be good for us in the future, unless we're bot account where we assume that inventory doesn't change
 			return new ParseTradeResult(tradeOffer.TradeOfferID, difference > 0 ? ParseTradeResult.EResult.AcceptedWithItemLose : (Bot.BotConfig.IsBotAccount ? ParseTradeResult.EResult.RejectedPermanently : ParseTradeResult.EResult.RejectedTemporarily));
+		}
+
+		private sealed class ParseTradeResult {
+			internal readonly EResult Result;
+
+			internal readonly ulong TradeID;
+
+			internal ParseTradeResult(ulong tradeID, EResult result) {
+				if ((tradeID == 0) || (result == EResult.Unknown)) {
+					throw new ArgumentNullException(nameof(tradeID) + " || " + nameof(result));
+				}
+
+				TradeID = tradeID;
+				Result = result;
+			}
+
+			internal enum EResult : byte {
+				Unknown,
+				AcceptedWithItemLose,
+				AcceptedWithoutItemLose,
+				RejectedTemporarily,
+				RejectedPermanently
+			}
 		}
 	}
 }

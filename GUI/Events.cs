@@ -26,11 +26,12 @@ using GUI;
 using SteamKit2;
 
 // ReSharper disable once CheckNamespace
+
 namespace ArchiSteamFarm {
 	internal static class Events {
 		internal static void OnBotShutdown() { }
 
-		internal static void OnStateUpdated(Bot bot, SteamFriends.PersonaStateCallback callback) {
+		internal static void OnPersonaState(Bot bot, SteamFriends.PersonaStateCallback callback) {
 			if (bot == null) {
 				ASF.ArchiLogger.LogNullError(nameof(bot));
 				return;

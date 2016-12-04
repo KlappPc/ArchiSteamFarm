@@ -29,9 +29,9 @@ using NLog.Targets;
 
 namespace ArchiSteamFarm {
 	internal static class Logging {
-		private const string LayoutMessage = @"${logger}|${message}${onexception:inner= ${exception:format=toString,Data}}";
-		private const string GeneralLayout = @"${date:format=yyyy-MM-dd HH\:mm\:ss}|${processname}-${processid}|${level:uppercase=true}|" + LayoutMessage;
 		private const string EventLogLayout = LayoutMessage;
+		private const string GeneralLayout = @"${date:format=yyyy-MM-dd HH\:mm\:ss}|${processname}-${processid}|${level:uppercase=true}|" + LayoutMessage;
+		private const string LayoutMessage = @"${logger}|${message}${onexception:inner= ${exception:format=toString,Data}}";
 
 		private static readonly ConcurrentHashSet<LoggingRule> ConsoleLoggingRules = new ConcurrentHashSet<LoggingRule>();
 
@@ -79,20 +79,6 @@ namespace ArchiSteamFarm {
 			InitConsoleLoggers();
 		}
 
-		internal static void OnUserInputStart() {
-			IsWaitingForUserInput = true;
-
-			if (ConsoleLoggingRules.Count == 0) {
-				return;
-			}
-
-			foreach (LoggingRule consoleLoggingRule in ConsoleLoggingRules) {
-				LogManager.Configuration.LoggingRules.Remove(consoleLoggingRule);
-			}
-
-			LogManager.ReconfigExistingLoggers();
-		}
-
 		internal static void OnUserInputEnd() {
 			IsWaitingForUserInput = false;
 
@@ -102,6 +88,20 @@ namespace ArchiSteamFarm {
 
 			foreach (LoggingRule consoleLoggingRule in ConsoleLoggingRules.Where(consoleLoggingRule => !LogManager.Configuration.LoggingRules.Contains(consoleLoggingRule))) {
 				LogManager.Configuration.LoggingRules.Add(consoleLoggingRule);
+			}
+
+			LogManager.ReconfigExistingLoggers();
+		}
+
+		internal static void OnUserInputStart() {
+			IsWaitingForUserInput = true;
+
+			if (ConsoleLoggingRules.Count == 0) {
+				return;
+			}
+
+			foreach (LoggingRule consoleLoggingRule in ConsoleLoggingRules) {
+				LogManager.Configuration.LoggingRules.Remove(consoleLoggingRule);
 			}
 
 			LogManager.ReconfigExistingLoggers();
