@@ -600,6 +600,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericInfo("Shared library has not been launched in given time period, farming process resumed!");
+			StopFamilySharingInactivityTimer();
 			CardsFarmer.Resume(false);
 		}
 
@@ -1205,7 +1206,7 @@ namespace ArchiSteamFarm {
 					}
 
 					// Sometimes Steam won't send us our own PersonaStateCallback, so request it explicitly
-					SteamFriends.RequestFriendInfo(callback.ClientSteamID, EClientPersonaStateFlag.Presence);
+					SteamFriends.RequestFriendInfo(callback.ClientSteamID, EClientPersonaStateFlag.PlayerName | EClientPersonaStateFlag.Presence);
 
 					if (BotDatabase.MobileAuthenticator == null) {
 						// Support and convert SDA files
@@ -1413,7 +1414,7 @@ namespace ArchiSteamFarm {
 		}
 
 		private void ResetGamesPlayed() {
-			if (PlayingBlocked) {
+			if (!IsPlayingPossible || (FamilySharingInactivityTimer != null)) {
 				return;
 			}
 
@@ -1685,7 +1686,7 @@ namespace ArchiSteamFarm {
 				return "Trade offer failed due to error!";
 			}
 
-			await Task.Delay(1000).ConfigureAwait(false); // Sometimes we can be too fast for Steam servers to generate confirmations, wait a short moment
+			await Task.Delay(3000).ConfigureAwait(false); // Sometimes we can be too fast for Steam servers to generate confirmations, wait a short moment
 			await AcceptConfirmations(true, Steam.ConfirmationDetails.EType.Trade, BotConfig.SteamMasterID).ConfigureAwait(false);
 			return "Trade offer sent successfully!";
 		}
@@ -2696,7 +2697,9 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			FamilySharingInactivityTimer = new Timer(e => CheckFamilySharingInactivity(), null, TimeSpan.FromMinutes(FamilySharingInactivityMinutes), // Delay
+			FamilySharingInactivityTimer = new Timer(e => CheckFamilySharingInactivity(),
+				null,
+				TimeSpan.FromMinutes(FamilySharingInactivityMinutes), // Delay
 				Timeout.InfiniteTimeSpan // Period
 			);
 		}
