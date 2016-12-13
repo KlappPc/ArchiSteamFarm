@@ -26,7 +26,6 @@ using System;
 using System.Linq;
 using System.ServiceModel;
 using System.ServiceModel.Channels;
-using System.ServiceModel.Description;
 
 namespace ArchiSteamFarm {
 	[ServiceContract]
@@ -39,7 +38,7 @@ namespace ArchiSteamFarm {
 	}
 
 	internal sealed class WCF : IWCF, IDisposable {
-		private static string URL = "http://localhost:1242/ASF";
+		private static string URL = "net.tcp://127.0.0.1:1242/ASF";
 
 		internal bool IsServerRunning => ServiceHost != null;
 
@@ -69,21 +68,24 @@ namespace ArchiSteamFarm {
 			}
 
 			string command = "!" + input;
-			string output = bot.Response(Program.GlobalConfig.SteamOwnerID, command).Result; // TODO: This should be asynchronous
+
+			// TODO: This should be asynchronous, but for some reason Mono doesn't return any WCF output if it is
+			// We must keep it synchronous until either Mono gets fixed, or culprit for freeze located (and corrected)
+			string output = bot.Response(Program.GlobalConfig.SteamOwnerID, command).Result;
 
 			ASF.ArchiLogger.LogGenericInfo("Answered to command: " + input + " with: " + output);
 			return output;
 		}
 
 		internal static void Init() {
-			if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHostname)) {
-				Program.GlobalConfig.WCFHostname = Program.GetUserInput(ASF.EUserInputType.WCFHostname);
-				if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHostname)) {
+			if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHost)) {
+				Program.GlobalConfig.WCFHost = Program.GetUserInput(ASF.EUserInputType.WCFHostname);
+				if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHost)) {
 					return;
 				}
 			}
 
-			URL = "http://" + Program.GlobalConfig.WCFHostname + ":" + Program.GlobalConfig.WCFPort + "/ASF";
+			URL = "net.tcp://" + Program.GlobalConfig.WCFHost + ":" + Program.GlobalConfig.WCFPort + "/ASF";
 		}
 
 		internal string SendCommand(string input) {
@@ -93,7 +95,7 @@ namespace ArchiSteamFarm {
 			}
 
 			if (Client == null) {
-				Client = new Client(new BasicHttpBinding(), new EndpointAddress(URL));
+				Client = new Client(new NetTcpBinding(), new EndpointAddress(URL));
 			}
 
 			return Client.HandleCommand(input);
@@ -104,17 +106,13 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			ASF.ArchiLogger.LogGenericInfo("Starting WCF server...");
+			ASF.ArchiLogger.LogGenericInfo("Starting WCF server on " + URL + " ...");
 
 			try {
 				ServiceHost = new ServiceHost(typeof(WCF), new Uri(URL));
-
-				ServiceHost.Description.Behaviors.Add(new ServiceMetadataBehavior { HttpGetEnabled = true });
-
-				ServiceHost.AddServiceEndpoint(ServiceMetadataBehavior.MexContractName, MetadataExchangeBindings.CreateMexHttpBinding(), "mex");
-				ServiceHost.AddServiceEndpoint(typeof(IWCF), new BasicHttpBinding(), string.Empty);
-
+				ServiceHost.AddServiceEndpoint(typeof(IWCF), new NetTcpBinding(), string.Empty);
 				ServiceHost.Open();
+
 				ASF.ArchiLogger.LogGenericInfo("WCF server ready!");
 			} catch (AddressAccessDeniedException) {
 				ASF.ArchiLogger.LogGenericError("WCF service could not be started because of AddressAccessDeniedException!");

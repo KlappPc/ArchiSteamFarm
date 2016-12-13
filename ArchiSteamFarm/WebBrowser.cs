@@ -102,6 +102,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return null;
 		}
 
@@ -121,6 +122,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return null;
 		}
 
@@ -140,6 +142,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return null;
 		}
 
@@ -178,6 +181,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return null;
 		}
 
@@ -197,6 +201,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return false;
 		}
 
@@ -216,6 +221,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return null;
 		}
 
@@ -246,6 +252,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return false;
 		}
 
@@ -334,6 +341,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return null;
 		}
 
@@ -470,6 +478,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericWarning("Request failed even after " + MaxRetries + " tries");
+			ArchiLogger.LogGenericDebug("Failing request: " + request);
 			return null;
 		}
 
@@ -512,7 +521,7 @@ namespace ArchiSteamFarm {
 				} catch (Exception e) {
 					// This exception is really common, don't bother with it unless debug mode is enabled
 					if (Debugging.IsDebugBuild || Program.GlobalConfig.Debug) {
-						ArchiLogger.LogGenericException(e);
+						ArchiLogger.LogGenericDebugException(e);
 					}
 
 					return null;
@@ -528,9 +537,9 @@ namespace ArchiSteamFarm {
 			}
 
 			if (Debugging.IsDebugBuild || Program.GlobalConfig.Debug) {
-				ArchiLogger.LogGenericError("Request: " + request + " failed!");
-				ArchiLogger.LogGenericError("Status code: " + responseMessage.StatusCode);
-				ArchiLogger.LogGenericError("Content: " + Environment.NewLine + await responseMessage.Content.ReadAsStringAsync().ConfigureAwait(false));
+				ArchiLogger.LogGenericDebug("Request: " + request + " failed!");
+				ArchiLogger.LogGenericDebug("Status code: " + responseMessage.StatusCode);
+				ArchiLogger.LogGenericDebug("Content: " + Environment.NewLine + await responseMessage.Content.ReadAsStringAsync().ConfigureAwait(false));
 			}
 
 			responseMessage.Dispose();
