@@ -36,8 +36,12 @@ namespace ArchiSteamFarm {
 		private readonly Bot Bot;
 		private readonly SemaphoreSlim Semaphore = new SemaphoreSlim(1);
 
+		private bool HasAutomatedTrading => Bot.HasMobileAuthenticator && Bot.HasValidApiKey;
+		private bool SteamTradeMatcher => Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.SteamTradeMatcher);
+
 		private string LastAvatarHash;
 		private DateTime LastHeartBeat = DateTime.MinValue;
+		private bool? LastMatchEverything;
 		private string LastNickname;
 		private bool ShouldSendHeartBeats;
 
@@ -78,37 +82,17 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal async Task OnLoggedOn() {
-			await Bot.ArchiWebHandler.JoinGroup(SharedInfo.ASFGroupSteamID).ConfigureAwait(false);
-
-			await Semaphore.WaitAsync().ConfigureAwait(false);
-
-			try {
-				const string request = SharedInfo.StatisticsServer + "/api/LoggedOn";
-
-				bool hasAutomatedTrading = Bot.HasMobileAuthenticator && Bot.HasValidApiKey;
-				bool steamTradeMatcher = Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.SteamTradeMatcher);
-
-				Dictionary<string, string> data = new Dictionary<string, string>(5) {
-					{ "SteamID", Bot.SteamID.ToString() },
-					{ "Guid", Program.GlobalDatabase.Guid.ToString("N") },
-					{ "HasAutomatedTrading", hasAutomatedTrading ? "1" : "0" },
-					{ "SteamTradeMatcher", steamTradeMatcher ? "1" : "0" },
-					{ "MatchEverything", Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.MatchEverything) ? "1" : "0" }
-				};
-
-				ShouldSendHeartBeats = hasAutomatedTrading && steamTradeMatcher;
-
-				// We don't need retry logic here
-				await Program.WebBrowser.UrlPost(request, data).ConfigureAwait(false);
-			} finally {
-				Semaphore.Release();
-			}
-		}
+		internal async Task OnLoggedOn() => await Bot.ArchiWebHandler.JoinGroup(SharedInfo.ASFGroupSteamID).ConfigureAwait(false);
 
 		internal async Task OnPersonaState(SteamFriends.PersonaStateCallback callback) {
 			if (callback == null) {
 				ASF.ArchiLogger.LogNullError(nameof(callback));
+				return;
+			}
+
+			// Don't announce if we don't meet conditions
+			if (!HasAutomatedTrading || !SteamTradeMatcher) {
+				ShouldSendHeartBeats = false;
 				return;
 			}
 
@@ -122,29 +106,38 @@ namespace ArchiSteamFarm {
 				}
 			}
 
-			if (!string.IsNullOrEmpty(LastNickname) && nickname.Equals(LastNickname) && !string.IsNullOrEmpty(LastAvatarHash) && avatarHash.Equals(LastAvatarHash)) {
+			bool matchEverything = Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.MatchEverything);
+
+			// Skip announcing if we already announced this bot with the same data
+			if (!string.IsNullOrEmpty(LastNickname) && nickname.Equals(LastNickname) && !string.IsNullOrEmpty(LastAvatarHash) && avatarHash.Equals(LastAvatarHash) && LastMatchEverything.HasValue && (matchEverything == LastMatchEverything.Value)) {
 				return;
 			}
 
 			await Semaphore.WaitAsync().ConfigureAwait(false);
 
 			try {
-				if (!string.IsNullOrEmpty(LastNickname) && nickname.Equals(LastNickname) && !string.IsNullOrEmpty(LastAvatarHash) && avatarHash.Equals(LastAvatarHash)) {
+				// Skip announcing if we already announced this bot with the same data
+				if (!string.IsNullOrEmpty(LastNickname) && nickname.Equals(LastNickname) && !string.IsNullOrEmpty(LastAvatarHash) && avatarHash.Equals(LastAvatarHash) && LastMatchEverything.HasValue && (matchEverything == LastMatchEverything.Value)) {
 					return;
 				}
 
-				const string request = SharedInfo.StatisticsServer + "/api/PersonaState";
-				Dictionary<string, string> data = new Dictionary<string, string>(4) {
+				// Even if following request fails, we want to send HeartBeats regardless
+				ShouldSendHeartBeats = true;
+
+				const string request = SharedInfo.StatisticsServer + "/api/Announce";
+				Dictionary<string, string> data = new Dictionary<string, string>(5) {
 					{ "SteamID", Bot.SteamID.ToString() },
 					{ "Guid", Program.GlobalDatabase.Guid.ToString("N") },
 					{ "Nickname", nickname },
-					{ "AvatarHash", avatarHash }
+					{ "AvatarHash", avatarHash },
+					{ "MatchEverything", matchEverything ? "1" : "0" }
 				};
 
 				// We don't need retry logic here
 				if (await Program.WebBrowser.UrlPost(request, data).ConfigureAwait(false)) {
 					LastNickname = nickname;
 					LastAvatarHash = avatarHash;
+					LastMatchEverything = matchEverything;
 				}
 			} finally {
 				Semaphore.Release();

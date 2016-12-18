@@ -43,7 +43,7 @@ namespace ConfigGenerator {
 		private const ushort DefaultWCFPort = 1242;
 
 		// This is hardcoded blacklist which should not be possible to change
-		private static readonly HashSet<uint> GlobalBlacklist = new HashSet<uint> { 267420, 303700, 335590, 368020, 425280, 480730 };
+		private static readonly HashSet<uint> GlobalBlacklist = new HashSet<uint> { 267420, 303700, 335590, 368020, 425280, 480730, 566020 };
 
 		[Category("\tUpdates")]
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -116,7 +116,7 @@ namespace ConfigGenerator {
 
 		[Category("\tAccess")]
 		[JsonProperty]
-		public string WCFHostname { get; set; } = "localhost";
+		public string WCFHost { get; set; } = "127.0.0.1";
 
 		[Category("\tAccess")]
 		[JsonProperty(Required = Required.DisallowNull)]
