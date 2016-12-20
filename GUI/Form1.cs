@@ -62,7 +62,7 @@ namespace GUI {
 				command = command.Substring(1);
 			}
 			if (Client == null) {
-				Client = new Client(new BasicHttpBinding(), new EndpointAddress(URL));
+				Client = new Client(new NetTcpBinding(), new EndpointAddress(URL));
 			}
 			return Client.HandleCommand(command);
 		}
@@ -83,8 +83,8 @@ namespace GUI {
             ASFGUI.Icon = new System.Drawing.Icon(myStream);
             textBox1.ScrollBars = ScrollBars.Vertical;
 			checkBox4.Checked = true;
-			textBox3.Text = "http://localhost:1242/ASF";
-			URL = "http://localhost:1242/ASF";
+			textBox3.Text = "net.tcp://127.0.0.1:1242/ASF";
+			URL = "net.tcp://127.0.0.1:1242/ASF";
 			textBox2.Anchor = (AnchorStyles.Right | AnchorStyles.Left);
             textBox2.AppendText("For Support see here: " + supportThread+"\n");
             string message = "This GUI is in beta (or rather alpha)!\nIt needs to run as admin and steamOwnerID has to be set ('ASF --server' requires that)\nFor now there is a different SG thread and a different repo for Problems with the GUI.\nSee "+supportThread+ "\nArchi has nothing to do with it, so don't bother him, bother me ;->\nUse this only if you understand that and are willing to maybe experience bugs!\nUse it?";
