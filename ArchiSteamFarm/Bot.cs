@@ -82,6 +82,7 @@ namespace ArchiSteamFarm {
 		private readonly SteamClient SteamClient;
 		private readonly ConcurrentHashSet<ulong> SteamFamilySharingIDs = new ConcurrentHashSet<ulong>();
 		private readonly SteamFriends SteamFriends;
+		private readonly SteamSaleEvent SteamSaleEvent;
 		private readonly SteamUser SteamUser;
 		private readonly Trading Trading;
 
@@ -121,6 +122,7 @@ namespace ArchiSteamFarm {
             GamesMixed.Add(gameid, maxCards);
         }
 		private ulong LibraryLockedBySteamID;
+		private bool LootingAllowed = true;
 		private bool PlayingBlocked;
 		private Timer SendItemsTimer;
 		private bool SkipFirstShutdown;
@@ -225,6 +227,7 @@ namespace ArchiSteamFarm {
 			CardsFarmer = new CardsFarmer(this);
 			CardsFarmer.SetInitialState(BotConfig.Paused);
 
+			SteamSaleEvent = new SteamSaleEvent(this);
 			Trading = new Trading(this);
 
 			if (Program.GlobalConfig.Statistics) {
@@ -251,6 +254,7 @@ namespace ArchiSteamFarm {
 			InitializationSemaphore.Dispose();
 			SteamFamilySharingIDs.Dispose();
 			OwnedPackageIDs.Dispose();
+			SteamSaleEvent.Dispose();
 			Trading.Dispose();
 
 			// Those are objects that might be null and the check should be in-place
@@ -485,6 +489,8 @@ namespace ArchiSteamFarm {
 						return ResponseHelp(steamID);
 					case "!LOOT":
 						return await ResponseLoot(steamID).ConfigureAwait(false);
+					case "!LOOT^":
+						return ResponseLootSwitch(steamID);
 					case "!LOOTALL":
 						return await ResponseLootAll(steamID).ConfigureAwait(false);
 					case "!PASSWORD":
@@ -534,6 +540,8 @@ namespace ArchiSteamFarm {
 					return await ResponseFarm(steamID, args[1]).ConfigureAwait(false);
 				case "!LOOT":
 					return await ResponseLoot(steamID, args[1]).ConfigureAwait(false);
+				case "!LOOT^":
+					return ResponseLootSwitch(steamID, args[1]);
 				case "!OWNS":
 					if (args.Length > 2) {
 						return await ResponseOwns(steamID, args[1], args[2]).ConfigureAwait(false);
@@ -1730,6 +1738,10 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
+			if (!LootingAllowed) {
+				return "Looting is temporarily disabled!";
+			}
+
 			if (!IsConnectedAndLoggedOn) {
 				return "This bot instance is not connected!";
 			}
@@ -2054,7 +2066,39 @@ namespace ArchiSteamFarm {
             return "Trade offer sent successfully!";
         }
 
-        private async Task<string> ResponseOwns(ulong steamID, string query) {
+		private string ResponseLootSwitch(ulong steamID) {
+			if (steamID == 0) {
+				ArchiLogger.LogNullError(nameof(steamID));
+				return null;
+			}
+
+			if (!IsMaster(steamID)) {
+				return null;
+			}
+
+			LootingAllowed = !LootingAllowed;
+			return "Looting is now " + (LootingAllowed ? "enabled" : "disabled") + "!";
+		}
+
+		private static string ResponseLootSwitch(ulong steamID, string botName) {
+			if ((steamID == 0) || string.IsNullOrEmpty(botName)) {
+				ASF.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(botName));
+				return null;
+			}
+
+			Bot bot;
+			if (Bots.TryGetValue(botName, out bot)) {
+				return bot.ResponseLootSwitch(steamID);
+			}
+
+			if (IsOwner(steamID)) {
+				return "Couldn't find any bot named " + botName + "!";
+			}
+
+			return null;
+		}
+
+		private async Task<string> ResponseOwns(ulong steamID, string query) {
 			if ((steamID == 0) || string.IsNullOrEmpty(query)) {
 				ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(query));
 				return null;

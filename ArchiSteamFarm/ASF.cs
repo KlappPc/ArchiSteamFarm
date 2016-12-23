@@ -192,16 +192,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiLogger.LogGenericInfo("Update process finished!");
-
-			if (Program.GlobalConfig.AutoRestart) {
-				ArchiLogger.LogGenericInfo("Restarting...");
-				await Task.Delay(5000).ConfigureAwait(false);
-				Program.Restart();
-			} else {
-				ArchiLogger.LogGenericInfo("Exiting...");
-				await Task.Delay(5000).ConfigureAwait(false);
-				Program.Exit();
-			}
+			await RestartOrExit().ConfigureAwait(false);
 		}
 
 		internal static void InitBots() {
@@ -277,8 +268,8 @@ namespace ArchiSteamFarm {
 			}
 
 			if (botName.Equals(SharedInfo.ASF)) {
-				ArchiLogger.LogGenericError("Global config file has been changed, restarting...");
-				Program.Restart();
+				ArchiLogger.LogGenericWarning("Global config file has been changed!");
+				await RestartOrExit().ConfigureAwait(false);
 				return;
 			}
 
@@ -382,6 +373,18 @@ namespace ArchiSteamFarm {
 			}
 
 			CreateBot(newBotName).Forget();
+		}
+
+		private static async Task RestartOrExit() {
+			if (Program.GlobalConfig.AutoRestart) {
+				ArchiLogger.LogGenericInfo("Restarting...");
+				await Task.Delay(5000).ConfigureAwait(false);
+				Program.Restart();
+			} else {
+				ArchiLogger.LogGenericInfo("Exiting...");
+				await Task.Delay(5000).ConfigureAwait(false);
+				Program.Exit();
+			}
 		}
 
 		internal sealed class BotConfigEventArgs : EventArgs {
