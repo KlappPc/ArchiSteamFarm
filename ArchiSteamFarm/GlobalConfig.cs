@@ -35,11 +35,11 @@ namespace ArchiSteamFarm {
 	[SuppressMessage("ReSharper", "ConvertToConstant.Global")]
 	internal sealed class GlobalConfig {
 		internal const byte DefaultHttpTimeout = 60;
+		internal const ushort DefaultWCFPort = 1242;
 
 		private const byte DefaultFarmingDelay = 15;
 		private const byte DefaultMaxFarmingTime = 10;
 		private const ProtocolType DefaultSteamProtocol = ProtocolType.Tcp;
-		private const ushort DefaultWCFPort = 1242;
 
 		// This is hardcoded blacklist which should not be possible to change
 		internal static readonly HashSet<uint> GlobalBlacklist = new HashSet<uint> { 267420, 303700, 335590, 368020, 425280, 480730, 566020 };
@@ -50,7 +50,7 @@ namespace ArchiSteamFarm {
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool AutoUpdates = true;
 
-		[JsonProperty(Required = Required.DisallowNull)]
+		[JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace, Required = Required.DisallowNull)]
 		internal readonly HashSet<uint> Blacklist = new HashSet<uint>(GlobalBlacklist);
 
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -58,9 +58,6 @@ namespace ArchiSteamFarm {
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte FarmingDelay = DefaultFarmingDelay;
-
-		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly bool ForceHttp = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte GiftsLimiterDelay = 1;
@@ -109,7 +106,7 @@ namespace ArchiSteamFarm {
 
 		internal static GlobalConfig Load(string filePath) {
 			if (string.IsNullOrEmpty(filePath)) {
-				ASF.ArchiLogger.LogNullError(nameof(filePath));
+				Program.ArchiLogger.LogNullError(nameof(filePath));
 				return null;
 			}
 
@@ -122,12 +119,12 @@ namespace ArchiSteamFarm {
 			try {
 				globalConfig = JsonConvert.DeserializeObject<GlobalConfig>(File.ReadAllText(filePath));
 			} catch (Exception e) {
-				ASF.ArchiLogger.LogGenericException(e);
+				Program.ArchiLogger.LogGenericException(e);
 				return null;
 			}
 
 			if (globalConfig == null) {
-				ASF.ArchiLogger.LogNullError(nameof(globalConfig));
+				Program.ArchiLogger.LogNullError(nameof(globalConfig));
 				return null;
 			}
 
@@ -138,24 +135,24 @@ namespace ArchiSteamFarm {
 				case ProtocolType.Udp:
 					break;
 				default:
-					ASF.ArchiLogger.LogGenericWarning("Configured SteamProtocol is invalid: " + globalConfig.SteamProtocol);
+					Program.ArchiLogger.LogGenericWarning("Configured SteamProtocol is invalid: " + globalConfig.SteamProtocol);
 					return null;
 			}
 
 			// User might not know what he's doing
 			// Ensure that he can't screw core ASF variables
 			if (globalConfig.MaxFarmingTime == 0) {
-				ASF.ArchiLogger.LogGenericWarning("Configured MaxFarmingTime is invalid: " + globalConfig.MaxFarmingTime);
+				Program.ArchiLogger.LogGenericWarning("Configured MaxFarmingTime is invalid: " + globalConfig.MaxFarmingTime);
 				return null;
 			}
 
 			if (globalConfig.FarmingDelay == 0) {
-				ASF.ArchiLogger.LogGenericWarning("Configured FarmingDelay is invalid: " + globalConfig.FarmingDelay);
+				Program.ArchiLogger.LogGenericWarning("Configured FarmingDelay is invalid: " + globalConfig.FarmingDelay);
 				return null;
 			}
 
 			if (globalConfig.HttpTimeout == 0) {
-				ASF.ArchiLogger.LogGenericWarning("Configured HttpTimeout is invalid: " + globalConfig.HttpTimeout);
+				Program.ArchiLogger.LogGenericWarning("Configured HttpTimeout is invalid: " + globalConfig.HttpTimeout);
 				return null;
 			}
 
@@ -163,7 +160,7 @@ namespace ArchiSteamFarm {
 				return globalConfig;
 			}
 
-			ASF.ArchiLogger.LogGenericWarning("Configured WCFPort is invalid: " + globalConfig.WCFPort);
+			Program.ArchiLogger.LogGenericWarning("Configured WCFPort is invalid: " + globalConfig.WCFPort);
 			return null;
 		}
 

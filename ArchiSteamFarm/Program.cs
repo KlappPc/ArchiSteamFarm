@@ -35,6 +35,8 @@ using SteamKit2;
 
 namespace ArchiSteamFarm {
 	internal static class Program {
+		internal static readonly ArchiLogger ArchiLogger = new ArchiLogger(SharedInfo.ASF);
+
 		internal static bool IsWCFRunning => WCF.IsServerRunning;
 		internal static GlobalConfig GlobalConfig { get; private set; }
 		internal static GlobalDatabase GlobalDatabase { get; private set; }
@@ -59,7 +61,7 @@ namespace ArchiSteamFarm {
 			}
 
 			if (GlobalConfig.Headless || !Runtime.IsUserInteractive) {
-				ASF.ArchiLogger.LogGenericWarning("Received a request for user input, but process is running in headless mode!");
+				ArchiLogger.LogGenericWarning("Received a request for user input, but process is running in headless mode!");
 				return null;
 			}
 
@@ -123,7 +125,7 @@ namespace ArchiSteamFarm {
 			try {
 				Process.Start(Assembly.GetEntryAssembly().Location, string.Join(" ", Environment.GetCommandLineArgs().Skip(1)));
 			} catch (Exception e) {
-				ASF.ArchiLogger.LogGenericException(e);
+				ArchiLogger.LogGenericException(e);
 			}
 
 			ShutdownResetEvent.Set();
@@ -138,7 +140,7 @@ namespace ArchiSteamFarm {
 			ShutdownResetEvent.Set();
 		}
 
-		private static void Init(string[] args) {
+		private static async Task Init(string[] args) {
 			AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
 			TaskScheduler.UnobservedTaskException += UnobservedTaskExceptionHandler;
 
@@ -169,10 +171,10 @@ namespace ArchiSteamFarm {
 			}
 
 			Logging.InitLoggers();
-			ASF.ArchiLogger.LogGenericInfo("ASF V" + SharedInfo.Version);
+			ArchiLogger.LogGenericInfo("ASF V" + SharedInfo.Version);
 
 			if (!Runtime.IsRuntimeSupported) {
-				ASF.ArchiLogger.LogGenericError("ASF detected unsupported runtime version, program might NOT run correctly in current environment. You're running it at your own risk!");
+				ArchiLogger.LogGenericError("ASF detected unsupported runtime version, program might NOT run correctly in current environment. You're running it at your own risk!");
 				Thread.Sleep(10000);
 			}
 
@@ -193,7 +195,7 @@ namespace ArchiSteamFarm {
 
 			// Parse post-init args
 			if (args != null) {
-				ParsePostInitArgs(args);
+				await ParsePostInitArgs(args).ConfigureAwait(false);
 			}
 
 			// If we ran ASF as a client, we're done by now
@@ -201,8 +203,8 @@ namespace ArchiSteamFarm {
 				Exit();
 			}
 
-			ASF.CheckForUpdate().Wait();
-			ASF.InitBots();
+			await ASF.CheckForUpdate().ConfigureAwait(false);
+			await ASF.InitBots().ConfigureAwait(false);
 			ASF.InitFileWatcher();
 		}
 
@@ -211,7 +213,7 @@ namespace ArchiSteamFarm {
 
 			GlobalConfig = GlobalConfig.Load(globalConfigFile);
 			if (GlobalConfig == null) {
-				ASF.ArchiLogger.LogGenericError("Global config could not be loaded, please make sure that " + globalConfigFile + " exists and is valid! Did you forget to read wiki?");
+				ArchiLogger.LogGenericError("Global config could not be loaded, please make sure that " + globalConfigFile + " exists and is valid! Did you forget to read wiki?");
 				Thread.Sleep(5000);
 				Exit(1);
 			}
@@ -220,7 +222,7 @@ namespace ArchiSteamFarm {
 
 			GlobalDatabase = GlobalDatabase.Load(globalDatabaseFile);
 			if (GlobalDatabase == null) {
-				ASF.ArchiLogger.LogGenericError("Global database could not be loaded, if issue persists, please remove " + globalDatabaseFile + " in order to recreate database!");
+				ArchiLogger.LogGenericError("Global database could not be loaded, if issue persists, please remove " + globalDatabaseFile + " in order to recreate database!");
 				Thread.Sleep(5000);
 				Exit(1);
 			}
@@ -229,7 +231,7 @@ namespace ArchiSteamFarm {
 			WebBrowser.Init();
 			WCF.Init();
 
-			WebBrowser = new WebBrowser(ASF.ArchiLogger);
+			WebBrowser = new WebBrowser(ArchiLogger);
 		}
 
 		private static bool InitShutdownSequence() {
@@ -250,7 +252,7 @@ namespace ArchiSteamFarm {
 		private static void Main(string[] args) {
 			if (Runtime.IsUserInteractive) {
 				// App
-				Init(args);
+				Init(args).Wait();
 
 				// Wait for signal to shutdown
 				ShutdownResetEvent.Wait();
@@ -266,9 +268,9 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		private static void ParsePostInitArgs(IEnumerable<string> args) {
+		private static async Task ParsePostInitArgs(IEnumerable<string> args) {
 			if (args == null) {
-				ASF.ArchiLogger.LogNullError(nameof(args));
+				ArchiLogger.LogNullError(nameof(args));
 				return;
 			}
 
@@ -282,7 +284,7 @@ namespace ArchiSteamFarm {
 					case "--server":
 						Mode |= EMode.Server;
 						WCF.StartServer();
-						ASF.InitBots();
+						await ASF.InitBots().ConfigureAwait(false);
 						break;
 					default:
 						if (arg.StartsWith("--", StringComparison.Ordinal)) {
@@ -294,11 +296,11 @@ namespace ArchiSteamFarm {
 						}
 
 						if (!Mode.HasFlag(EMode.Client)) {
-							ASF.ArchiLogger.LogGenericWarning("Ignoring command because --client wasn't specified: " + arg);
+							ArchiLogger.LogGenericWarning("Ignoring command because --client wasn't specified: " + arg);
 							break;
 						}
 
-						ASF.ArchiLogger.LogGenericInfo("Response received: " + WCF.SendCommand(arg));
+						ArchiLogger.LogGenericInfo("Response received: " + WCF.SendCommand(arg));
 						break;
 				}
 			}
@@ -306,7 +308,7 @@ namespace ArchiSteamFarm {
 
 		private static void ParsePreInitArgs(IEnumerable<string> args) {
 			if (args == null) {
-				ASF.ArchiLogger.LogNullError(nameof(args));
+				ArchiLogger.LogNullError(nameof(args));
 				return;
 			}
 
@@ -334,20 +336,20 @@ namespace ArchiSteamFarm {
 
 		private static void UnhandledExceptionHandler(object sender, UnhandledExceptionEventArgs args) {
 			if (args?.ExceptionObject == null) {
-				ASF.ArchiLogger.LogNullError(nameof(args) + " || " + nameof(args.ExceptionObject));
+				ArchiLogger.LogNullError(nameof(args) + " || " + nameof(args.ExceptionObject));
 				return;
 			}
 
-			ASF.ArchiLogger.LogFatalException((Exception) args.ExceptionObject);
+			ArchiLogger.LogFatalException((Exception) args.ExceptionObject);
 		}
 
 		private static void UnobservedTaskExceptionHandler(object sender, UnobservedTaskExceptionEventArgs args) {
 			if (args?.Exception == null) {
-				ASF.ArchiLogger.LogNullError(nameof(args) + " || " + nameof(args.Exception));
+				ArchiLogger.LogNullError(nameof(args) + " || " + nameof(args.Exception));
 				return;
 			}
 
-			ASF.ArchiLogger.LogFatalException(args.Exception);
+			ArchiLogger.LogFatalException(args.Exception);
 		}
 
 		[Flags]
@@ -362,8 +364,13 @@ namespace ArchiSteamFarm {
 				ServiceName = SharedInfo.ServiceName;
 			}
 
-			protected override void OnStart(string[] args) => Task.Run(() => {
-				Init(args);
+			protected override void OnStart(string[] args) => Task.Run(async () => {
+				// Normally it'd make sense to use already provided string[] args parameter above
+				// However, that one doesn't seem to work when ASF is started as a service, it's always null
+				// Therefore, we will use Environment args in such case
+				string[] envArgs = Environment.GetCommandLineArgs();
+				await Init(envArgs).ConfigureAwait(false);
+
 				ShutdownResetEvent.Wait();
 				Stop();
 			});

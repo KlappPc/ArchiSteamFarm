@@ -40,11 +40,15 @@ using Formatting = Newtonsoft.Json.Formatting;
 namespace ArchiSteamFarm {
 	internal sealed class ArchiWebHandler : IDisposable {
 		private const byte MinSessionTTL = GlobalConfig.DefaultHttpTimeout / 4; // Assume session is valid for at least that amount of seconds
+
+		// We must use HTTPS for SteamCommunity, as http would make certain POST requests failing (trades)
 		private const string SteamCommunityHost = "steamcommunity.com";
+		private const string SteamCommunityURL = "https://" + SteamCommunityHost;
+
+		// We could (and should) use HTTPS for SteamStore, but that would make certain POST requests failing
 		private const string SteamStoreHost = "store.steampowered.com";
 		private const string SteamStoreURL = "http://" + SteamStoreHost;
 
-		private static string SteamCommunityURL = "https://" + SteamCommunityHost;
 		private static int Timeout = GlobalConfig.DefaultHttpTimeout * 1000; // This must be int type
 
 		private readonly Bot Bot;
@@ -112,7 +116,7 @@ namespace ArchiSteamFarm {
 				return false;
 			}
 
-			string request = SteamStoreURL + "/checkout/addfreelicense";
+			const string request = SteamStoreURL + "/checkout/addfreelicense";
 			Dictionary<string, string> data = new Dictionary<string, string>(3) {
 				{ "sessionid", sessionID },
 				{ "subid", subID.ToString() },
@@ -160,7 +164,11 @@ namespace ArchiSteamFarm {
 					iEconService.Timeout = Timeout;
 
 					try {
-						response = iEconService.DeclineTradeOffer(tradeofferid: tradeID.ToString(), method: WebRequestMethods.Http.Post, secure: !Program.GlobalConfig.ForceHttp);
+						response = iEconService.DeclineTradeOffer(
+							tradeofferid: tradeID.ToString(),
+							method: WebRequestMethods.Http.Post,
+							secure: true
+						);
 					} catch (Exception e) {
 						Bot.ArchiLogger.LogGenericException(e);
 					}
@@ -183,7 +191,7 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
-			string request = SteamStoreURL + "/explore/generatenewdiscoveryqueue";
+			const string request = SteamStoreURL + "/explore/generatenewdiscoveryqueue";
 			Dictionary<string, string> data = new Dictionary<string, string>(2) {
 				{ "sessionid", sessionID },
 				{ "queuetype", "0" }
@@ -205,7 +213,12 @@ namespace ArchiSteamFarm {
 					iEconService.Timeout = Timeout;
 
 					try {
-						response = iEconService.GetTradeOffers(get_received_offers: 1, active_only: 1, get_descriptions: 1, secure: !Program.GlobalConfig.ForceHttp);
+						response = iEconService.GetTradeOffers(
+							get_received_offers: 1,
+							active_only: 1,
+							get_descriptions: 1,
+							secure: true
+						);
 					} catch (Exception e) {
 						Bot.ArchiLogger.LogGenericException(e);
 					}
@@ -352,7 +365,7 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
-			string request = SteamStoreURL + "/explore?l=english";
+			const string request = SteamStoreURL + "/explore?l=english";
 			return await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
 		}
 
@@ -361,7 +374,7 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
-			string request = SteamStoreURL + "/account/managedevices";
+			const string request = SteamStoreURL + "/account/managedevices";
 			HtmlDocument htmlDocument = await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
 
 			HtmlNodeCollection htmlNodes = htmlDocument?.DocumentNode.SelectNodes("(//table[@class='accountTable'])[last()]//a/@data-miniprofile");
@@ -404,7 +417,12 @@ namespace ArchiSteamFarm {
 			return await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
 		}
 
-		internal async Task<HashSet<Steam.Item>> GetMySteamInventory(bool tradable) {
+		internal async Task<HashSet<Steam.Item>> GetMySteamInventory(bool tradable, HashSet<Steam.Item.EType> wantedTypes) {
+			if ((wantedTypes == null) || (wantedTypes.Count == 0)) {
+				Bot.ArchiLogger.LogNullError(nameof(wantedTypes));
+				return null;
+			}
+
 			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
 				return null;
 			}
@@ -500,6 +518,10 @@ namespace ArchiSteamFarm {
 						steamItem.Type = description.Item2;
 					}
 
+					if (!wantedTypes.Contains(steamItem.Type)) {
+						continue;
+					}
+
 					result.Add(steamItem);
 				}
 
@@ -525,7 +547,7 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
-			string request = SteamCommunityURL + "/my/games/?xml=1";
+			const string request = SteamCommunityURL + "/my/games/?xml=1";
 
 			XmlDocument response = await WebBrowser.UrlGetToXMLRetry(request).ConfigureAwait(false);
 
@@ -572,7 +594,11 @@ namespace ArchiSteamFarm {
 					iPlayerService.Timeout = Timeout;
 
 					try {
-						response = iPlayerService.GetOwnedGames(steamid: steamID, include_appinfo: 1, secure: !Program.GlobalConfig.ForceHttp);
+						response = iPlayerService.GetOwnedGames(
+							steamid: steamID,
+							include_appinfo: 1,
+							secure: true
+						);
 					} catch (Exception e) {
 						Bot.ArchiLogger.LogGenericException(e);
 					}
@@ -605,7 +631,10 @@ namespace ArchiSteamFarm {
 					iTwoFactorService.Timeout = Timeout;
 
 					try {
-						response = iTwoFactorService.QueryTime(method: WebRequestMethods.Http.Post, secure: !Program.GlobalConfig.ForceHttp);
+						response = iTwoFactorService.QueryTime(
+							method: WebRequestMethods.Http.Post,
+							secure: true
+						);
 					} catch (Exception e) {
 						Bot.ArchiLogger.LogGenericException(e);
 					}
@@ -625,7 +654,7 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
-			string request = SteamStoreURL + "/SteamAwards?l=english";
+			const string request = SteamStoreURL + "/SteamAwards?l=english";
 			return await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
 		}
 
@@ -706,8 +735,7 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
-			string request = SteamCommunityURL + "/mobileconf/multiajaxop";
-
+			const string request = SteamCommunityURL + "/mobileconf/multiajaxop";
 			List<KeyValuePair<string, string>> data = new List<KeyValuePair<string, string>>(7 + confirmations.Count * 2) {
 				new KeyValuePair<string, string>("op", accept ? "allow" : "cancel"),
 				new KeyValuePair<string, string>("p", deviceID),
@@ -727,11 +755,7 @@ namespace ArchiSteamFarm {
 			return response?.Success;
 		}
 
-		internal static void Init() {
-			Timeout = Program.GlobalConfig.HttpTimeout * 1000;
-			SteamCommunityURL = (Program.GlobalConfig.ForceHttp ? "http://" : "https://") + SteamCommunityHost;
-			//SteamStoreURL = (Program.GlobalConfig.ForceHttp ? "http://" : "https://") + SteamStoreHost;
-		}
+		internal static void Init() => Timeout = Program.GlobalConfig.HttpTimeout * 1000;
 
 		internal async Task<bool> Init(ulong steamID, EUniverse universe, string webAPIUserNonce, string parentalPin) {
 			if ((steamID == 0) || (universe == EUniverse.Invalid) || string.IsNullOrEmpty(webAPIUserNonce) || string.IsNullOrEmpty(parentalPin)) {
@@ -767,7 +791,13 @@ namespace ArchiSteamFarm {
 				iSteamUserAuth.Timeout = Timeout;
 
 				try {
-					authResult = iSteamUserAuth.AuthenticateUser(steamid: steamID, sessionkey: Encoding.ASCII.GetString(WebUtility.UrlEncodeToBytes(cryptedSessionKey, 0, cryptedSessionKey.Length)), encrypted_loginkey: Encoding.ASCII.GetString(WebUtility.UrlEncodeToBytes(cryptedLoginKey, 0, cryptedLoginKey.Length)), method: WebRequestMethods.Http.Post, secure: !Program.GlobalConfig.ForceHttp);
+					authResult = iSteamUserAuth.AuthenticateUser(
+						steamid: steamID,
+						sessionkey: Encoding.ASCII.GetString(WebUtility.UrlEncodeToBytes(cryptedSessionKey, 0, cryptedSessionKey.Length)),
+						encrypted_loginkey: Encoding.ASCII.GetString(WebUtility.UrlEncodeToBytes(cryptedLoginKey, 0, cryptedLoginKey.Length)),
+						method: WebRequestMethods.Http.Post,
+						secure: true
+					);
 				} catch (Exception e) {
 					Bot.ArchiLogger.LogGenericException(e);
 					return false;
@@ -844,7 +874,7 @@ namespace ArchiSteamFarm {
 				return false;
 			}
 
-			string request = SteamCommunityURL + "/my/inventory";
+			const string request = SteamCommunityURL + "/my/inventory";
 			return await WebBrowser.UrlHeadRetry(request).ConfigureAwait(false);
 		}
 
@@ -860,7 +890,7 @@ namespace ArchiSteamFarm {
 				return ArchiHandler.PurchaseResponseCallback.EPurchaseResult.Timeout;
 			}
 
-			string request = SteamStoreURL + "/account/validatewalletcode";
+			const string request = SteamStoreURL + "/account/validatewalletcode";
 			Dictionary<string, string> data = new Dictionary<string, string>(1) {
 				{ "wallet_code", key }
 			};
@@ -904,8 +934,8 @@ namespace ArchiSteamFarm {
 				itemID++;
 			}
 
-			string referer = SteamCommunityURL + "/tradeoffer/new";
-			string request = referer + "/send";
+			const string referer = SteamCommunityURL + "/tradeoffer/new";
+			const string request = referer + "/send";
 			foreach (Dictionary<string, string> data in trades.Select(trade => new Dictionary<string, string>(6) {
 				{ "sessionid", sessionID },
 				{ "serverid", "1" },
@@ -938,7 +968,7 @@ namespace ArchiSteamFarm {
 				return false;
 			}
 
-			string request = SteamStoreURL + "/salevote";
+			const string request = SteamStoreURL + "/salevote";
 			Dictionary<string, string> data = new Dictionary<string, string>(3) {
 				{ "sessionid", sessionID },
 				{ "voteid", voteID.ToString() },
@@ -950,7 +980,7 @@ namespace ArchiSteamFarm {
 
 		private static uint GetAppIDFromMarketHashName(string hashName) {
 			if (string.IsNullOrEmpty(hashName)) {
-				ASF.ArchiLogger.LogNullError(nameof(hashName));
+				Program.ArchiLogger.LogNullError(nameof(hashName));
 				return 0;
 			}
 
@@ -965,17 +995,13 @@ namespace ArchiSteamFarm {
 
 		private static Steam.Item.EType GetItemType(string name) {
 			if (string.IsNullOrEmpty(name)) {
-				ASF.ArchiLogger.LogNullError(nameof(name));
+				Program.ArchiLogger.LogNullError(nameof(name));
 				return Steam.Item.EType.Unknown;
 			}
 
 			switch (name) {
 				case "Booster Pack":
 					return Steam.Item.EType.BoosterPack;
-				case "Coupon":
-					return Steam.Item.EType.Coupon;
-				case "Gift":
-					return Steam.Item.EType.Gift;
 				case "Steam Gems":
 					return Steam.Item.EType.SteamGems;
 				default:
@@ -998,7 +1024,7 @@ namespace ArchiSteamFarm {
 		private async Task<bool?> IsLoggedIn() {
 			// It would make sense to use /my/profile here, but it dismisses notifications related to profile comments
 			// So instead, we'll use some less intrusive link, such as /my/videos
-			string request = SteamCommunityURL + "/my/videos";
+			const string request = SteamCommunityURL + "/my/videos";
 
 			Uri uri = await WebBrowser.UrlHeadToUriRetry(request).ConfigureAwait(false);
 			return !uri?.AbsolutePath.StartsWith("/login", StringComparison.Ordinal);
@@ -1006,32 +1032,32 @@ namespace ArchiSteamFarm {
 
 		private static bool ParseItems(Dictionary<ulong, Tuple<uint, Steam.Item.EType>> descriptions, List<KeyValue> input, HashSet<Steam.Item> output) {
 			if ((descriptions == null) || (input == null) || (input.Count == 0) || (output == null)) {
-				ASF.ArchiLogger.LogNullError(nameof(descriptions) + " || " + nameof(input) + " || " + nameof(output));
+				Program.ArchiLogger.LogNullError(nameof(descriptions) + " || " + nameof(input) + " || " + nameof(output));
 				return false;
 			}
 
 			foreach (KeyValue item in input) {
 				uint appID = item["appid"].AsUnsignedInteger();
 				if (appID == 0) {
-					ASF.ArchiLogger.LogNullError(nameof(appID));
+					Program.ArchiLogger.LogNullError(nameof(appID));
 					return false;
 				}
 
 				ulong contextID = item["contextid"].AsUnsignedLong();
 				if (contextID == 0) {
-					ASF.ArchiLogger.LogNullError(nameof(contextID));
+					Program.ArchiLogger.LogNullError(nameof(contextID));
 					return false;
 				}
 
 				ulong classID = item["classid"].AsUnsignedLong();
 				if (classID == 0) {
-					ASF.ArchiLogger.LogNullError(nameof(classID));
+					Program.ArchiLogger.LogNullError(nameof(classID));
 					return false;
 				}
 
 				uint amount = item["amount"].AsUnsignedInteger();
 				if (amount == 0) {
-					ASF.ArchiLogger.LogNullError(nameof(amount));
+					Program.ArchiLogger.LogNullError(nameof(amount));
 					return false;
 				}
 
@@ -1084,7 +1110,7 @@ namespace ArchiSteamFarm {
 
 			Bot.ArchiLogger.LogGenericInfo("Unlocking parental account...");
 
-			string request = SteamCommunityURL + "/parental/ajaxunlock";
+			const string request = SteamCommunityURL + "/parental/ajaxunlock";
 			Dictionary<string, string> data = new Dictionary<string, string>(1) {
 				{ "pin", parentalPin }
 			};

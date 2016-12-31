@@ -53,8 +53,8 @@ namespace ConfigGenerator {
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool AutoUpdates { get; set; } = true;
 
-		[JsonProperty(Required = Required.DisallowNull)]
-		public List<uint> Blacklist { get; set; } = new List<uint>();
+		[JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace, Required = Required.DisallowNull)]
+		public List<uint> Blacklist { get; set; } = new List<uint>(GlobalBlacklist);
 
 		[Category("\tDebugging")]
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -63,10 +63,6 @@ namespace ConfigGenerator {
 		[Category("\tPerformance")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public byte FarmingDelay { get; set; } = DefaultFarmingDelay;
-
-		[Category("\tDebugging")]
-		[JsonProperty(Required = Required.DisallowNull)]
-		public bool ForceHttp { get; set; } = false;
 
 		[Category("\tPerformance")]
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -130,7 +126,6 @@ namespace ConfigGenerator {
 				throw new ArgumentNullException(nameof(filePath));
 			}
 
-			Blacklist.AddRange(GlobalBlacklist);
 			Save();
 		}
 

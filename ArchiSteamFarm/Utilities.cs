@@ -27,6 +27,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Text;
 
 namespace ArchiSteamFarm {
 	internal static class Utilities {
@@ -38,7 +39,7 @@ namespace ArchiSteamFarm {
 
 		internal static string GetCookieValue(this CookieContainer cookieContainer, string url, string name) {
 			if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(name)) {
-				ASF.ArchiLogger.LogNullError(nameof(url) + " || " + nameof(name));
+				Program.ArchiLogger.LogNullError(nameof(url) + " || " + nameof(name));
 				return null;
 			}
 
@@ -47,7 +48,7 @@ namespace ArchiSteamFarm {
 			try {
 				uri = new Uri(url);
 			} catch (UriFormatException e) {
-				ASF.ArchiLogger.LogGenericException(e);
+				Program.ArchiLogger.LogGenericException(e);
 				return null;
 			}
 
@@ -59,7 +60,7 @@ namespace ArchiSteamFarm {
 
 		internal static int RandomNext(int maxWithout) {
 			if (maxWithout <= 0) {
-				ASF.ArchiLogger.LogNullError(nameof(maxWithout));
+				Program.ArchiLogger.LogNullError(nameof(maxWithout));
 				return -1;
 			}
 
@@ -70,6 +71,63 @@ namespace ArchiSteamFarm {
 			lock (Random) {
 				return Random.Next(maxWithout);
 			}
+		}
+
+		internal static string ToHumanReadable(this TimeSpan timeSpan) {
+			// It's really dirty, I'd appreciate a lot if C# offered nice TimeSpan formatting by default
+			// Normally I'd use third-party library like Humanizer, but using it only for this bit is not worth it
+			// Besides, ILRepack has problem merging it's library due to referencing System.Runtime
+
+			StringBuilder result = new StringBuilder();
+
+			if (timeSpan.Days > 0) {
+				result.Append(" " + timeSpan.Days + " day");
+
+				if (timeSpan.Days > 1) {
+					result.Append('s');
+				}
+
+				result.Append(',');
+			}
+
+			if (timeSpan.Hours > 0) {
+				result.Append(" " + timeSpan.Hours + " hour");
+				if (timeSpan.Hours > 1) {
+					result.Append('s');
+				}
+
+				result.Append(',');
+			}
+
+			if (timeSpan.Minutes > 0) {
+				result.Append(" " + timeSpan.Minutes + " minute");
+				if (timeSpan.Minutes > 1) {
+					result.Append('s');
+				}
+
+				result.Append(',');
+			}
+
+			if (timeSpan.Seconds > 0) {
+				result.Append(" " + timeSpan.Hours + " second");
+				if (timeSpan.Seconds > 1) {
+					result.Append('s');
+				}
+
+				result.Append(',');
+			}
+
+			if (result.Length <= 1) {
+				return "";
+			}
+
+			// Get rid of initial space
+			result.Remove(0, 1);
+
+			// Get rid of last comma
+			result.Length--;
+
+			return result.ToString();
 		}
 	}
 }

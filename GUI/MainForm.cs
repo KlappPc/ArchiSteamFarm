@@ -23,7 +23,7 @@ namespace GUI {
 
 		internal static void UpdateBotAvatar(string botName, Image image) {
 			if (string.IsNullOrEmpty(botName) || (image == null)) {
-				ASF.ArchiLogger.LogNullError(nameof(botName) + " || " + nameof(image));
+				Program.ArchiLogger.LogNullError(nameof(botName) + " || " + nameof(image));
 				return;
 			}
 
@@ -68,17 +68,17 @@ namespace GUI {
 			BotListView.LargeImageList = BotListView.SmallImageList = AvatarImageList;
 
 			await Task.Run(async () => {
-				ASF.ArchiLogger.LogGenericInfo("ASF V" + SharedInfo.Version);
+				Program.ArchiLogger.LogGenericInfo("ASF V" + SharedInfo.Version);
 
 				if (!Directory.Exists(SharedInfo.ConfigDirectory)) {
-					ASF.ArchiLogger.LogGenericError("Config directory could not be found!");
+					Program.ArchiLogger.LogGenericError("Config directory could not be found!");
 					Environment.Exit(1);
 				}
 
 				await ASF.CheckForUpdate().ConfigureAwait(false);
 
 				// Before attempting to connect, initialize our list of CMs
-				Bot.InitializeCMs(Program.GlobalDatabase.CellID, Program.GlobalDatabase.ServerListProvider);
+				await Bot.InitializeCMs(Program.GlobalDatabase.CellID, Program.GlobalDatabase.ServerListProvider).ConfigureAwait(false);
 			});
 
 			foreach (string botName in Directory.EnumerateFiles(SharedInfo.ConfigDirectory, "*.json").Select(Path.GetFileNameWithoutExtension)) {
@@ -133,7 +133,7 @@ namespace GUI {
 
 		private static Bitmap ResizeImage(Image image, int width, int height) {
 			if ((image == null) || (width <= 0) || (height <= 0)) {
-				ASF.ArchiLogger.LogNullError(nameof(image) + " || " + nameof(width) + " || " + nameof(height));
+				Program.ArchiLogger.LogNullError(nameof(image) + " || " + nameof(width) + " || " + nameof(height));
 				return null;
 			}
 

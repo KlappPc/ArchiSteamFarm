@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
+using ArchiSteamFarm.JSON;
 using Newtonsoft.Json;
 
 namespace ArchiSteamFarm {
@@ -54,9 +55,6 @@ namespace ArchiSteamFarm {
 		internal readonly bool DismissInventoryNotifications = true;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly bool DistributeKeys = false;
-
-		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool Enabled = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -64,9 +62,6 @@ namespace ArchiSteamFarm {
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool FarmOffline = false;
-
-		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly bool ForwardKeysToOtherBots = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly HashSet<uint> GamesPlayedWhileIdle = new HashSet<uint>();
@@ -77,11 +72,17 @@ namespace ArchiSteamFarm {
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool IsBotAccount = false;
 
+		[JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace, Required = Required.DisallowNull)]
+		internal readonly HashSet<Steam.Item.EType> LootableTypes = new HashSet<Steam.Item.EType> { Steam.Item.EType.BoosterPack, Steam.Item.EType.FoilTradingCard, Steam.Item.EType.TradingCard };
+
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly CryptoHelper.ECryptoMethod PasswordFormat = CryptoHelper.ECryptoMethod.PlainText;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool Paused = false;
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		internal readonly ERedeemingPreferences RedeemingPreferences = ERedeemingPreferences.None;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool SendOnFarmingFinished = false;
@@ -121,7 +122,7 @@ namespace ArchiSteamFarm {
 
 		internal static BotConfig Load(string filePath) {
 			if (string.IsNullOrEmpty(filePath)) {
-				ASF.ArchiLogger.LogNullError(nameof(filePath));
+				Program.ArchiLogger.LogNullError(nameof(filePath));
 				return null;
 			}
 
@@ -134,12 +135,12 @@ namespace ArchiSteamFarm {
 			try {
 				botConfig = JsonConvert.DeserializeObject<BotConfig>(File.ReadAllText(filePath));
 			} catch (Exception e) {
-				ASF.ArchiLogger.LogGenericException(e);
+				Program.ArchiLogger.LogGenericException(e);
 				return null;
 			}
 
 			if (botConfig == null) {
-				ASF.ArchiLogger.LogNullError(nameof(botConfig));
+				Program.ArchiLogger.LogNullError(nameof(botConfig));
 				return null;
 			}
 
@@ -151,13 +152,13 @@ namespace ArchiSteamFarm {
 
 			// User might not know what he's doing
 			// Ensure that he can't screw core ASF variables
-			if (botConfig.GamesPlayedWhileIdle.Count <= CardsFarmer.MaxGamesPlayedConcurrently) {
+			if (botConfig.GamesPlayedWhileIdle.Count <= ArchiHandler.MaxGamesPlayedConcurrently) {
 				return botConfig;
 			}
 
-			ASF.ArchiLogger.LogGenericWarning("Playing more than " + CardsFarmer.MaxGamesPlayedConcurrently + " games concurrently is not possible, only first " + CardsFarmer.MaxGamesPlayedConcurrently + " entries from GamesPlayedWhileIdle will be used");
+			Program.ArchiLogger.LogGenericWarning("Playing more than " + ArchiHandler.MaxGamesPlayedConcurrently + " games concurrently is not possible, only first " + ArchiHandler.MaxGamesPlayedConcurrently + " entries from GamesPlayedWhileIdle will be used");
 
-			HashSet<uint> validGames = new HashSet<uint>(botConfig.GamesPlayedWhileIdle.Take(CardsFarmer.MaxGamesPlayedConcurrently));
+			HashSet<uint> validGames = new HashSet<uint>(botConfig.GamesPlayedWhileIdle.Take(ArchiHandler.MaxGamesPlayedConcurrently));
 			botConfig.GamesPlayedWhileIdle.IntersectWith(validGames);
 			botConfig.GamesPlayedWhileIdle.TrimExcess();
 
@@ -174,6 +175,14 @@ namespace ArchiSteamFarm {
 			HoursDescending,
 			NamesAscending,
 			NamesDescending
+		}
+
+		[Flags]
+		internal enum ERedeemingPreferences : byte {
+			[SuppressMessage("ReSharper", "UnusedMember.Global")]
+			None = 0,
+			Forwarding = 1,
+			Distributing = 2
 		}
 
 		[Flags]

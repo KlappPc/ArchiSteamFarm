@@ -28,6 +28,7 @@ using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing.Design;
 using System.IO;
+using ConfigGenerator.JSON;
 using Newtonsoft.Json;
 
 namespace ConfigGenerator {
@@ -56,9 +57,6 @@ namespace ConfigGenerator {
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool DismissInventoryNotifications { get; set; } = true;
 
-		[JsonProperty(Required = Required.DisallowNull)]
-		public bool DistributeKeys { get; set; } = false;
-
 		[Category("\t\tCore")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool Enabled { get; set; } = false;
@@ -68,9 +66,6 @@ namespace ConfigGenerator {
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool FarmOffline { get; set; } = false;
-
-		[JsonProperty(Required = Required.DisallowNull)]
-		public bool ForwardKeysToOtherBots { get; set; } = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public List<uint> GamesPlayedWhileIdle { get; set; } = new List<uint>();
@@ -83,6 +78,10 @@ namespace ConfigGenerator {
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool IsBotAccount { get; set; } = false;
 
+		[Category("\tAdvanced")]
+		[JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace, Required = Required.DisallowNull)]
+		public List<Steam.Item.EType> LootableTypes { get; set; } = new List<Steam.Item.EType> { Steam.Item.EType.BoosterPack, Steam.Item.EType.FoilTradingCard, Steam.Item.EType.TradingCard };
+
 		[Category("\tAccess")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public ECryptoMethod PasswordFormat { get; set; } = ECryptoMethod.PlainText;
@@ -90,6 +89,11 @@ namespace ConfigGenerator {
 		[Category("\tAdvanced")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool Paused { get; set; } = false;
+
+		[Category("\tAdvanced")]
+		[Editor(typeof(FlagEnumUiEditor), typeof(UITypeEditor))]
+		[JsonProperty(Required = Required.DisallowNull)]
+		public ERedeemingPreferences RedeemingPreferences { get; set; } = ERedeemingPreferences.None;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool SendOnFarmingFinished { get; set; } = false;
@@ -189,6 +193,13 @@ namespace ConfigGenerator {
 			HoursDescending,
 			NamesAscending,
 			NamesDescending
+		}
+
+		[Flags]
+		internal enum ERedeemingPreferences : byte {
+			None = 0,
+			Forwarding = 1,
+			Distributing = 2
 		}
 
 		[Flags]
