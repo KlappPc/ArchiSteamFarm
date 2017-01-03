@@ -5,7 +5,7 @@
  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
 /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
 
- Copyright 2015-2016 Łukasz "JustArchi" Domeradzki
+ Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
  Contact: JustArchi@JustArchi.net
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -368,6 +368,7 @@ namespace ArchiSteamFarm.JSON {
 			}
 		}
 
+		/*
 		[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 		[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
 		internal sealed class NewDiscoveryQueueResponse { // Deserialized from JSON
@@ -378,6 +379,7 @@ namespace ArchiSteamFarm.JSON {
 
 			private NewDiscoveryQueueResponse() { }
 		}
+		*/
 
 		[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 		[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]

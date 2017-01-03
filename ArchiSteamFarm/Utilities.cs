@@ -5,7 +5,7 @@
  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
 /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
 
- Copyright 2015-2016 Łukasz "JustArchi" Domeradzki
+ Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
  Contact: JustArchi@JustArchi.net
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +31,7 @@ using System.Text;
 
 namespace ArchiSteamFarm {
 	internal static class Utilities {
-		private static readonly Random Random = new Random();
+		//private static readonly Random Random = new Random();
 
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[SuppressMessage("ReSharper", "UnusedParameter.Global")]
@@ -58,6 +58,7 @@ namespace ArchiSteamFarm {
 
 		internal static uint GetUnixTime() => (uint) DateTimeOffset.Now.ToUnixTimeSeconds();
 
+		/*
 		internal static int RandomNext(int maxWithout) {
 			if (maxWithout <= 0) {
 				Program.ArchiLogger.LogNullError(nameof(maxWithout));
@@ -72,6 +73,7 @@ namespace ArchiSteamFarm {
 				return Random.Next(maxWithout);
 			}
 		}
+		*/
 
 		internal static string ToHumanReadable(this TimeSpan timeSpan) {
 			// It's really dirty, I'd appreciate a lot if C# offered nice TimeSpan formatting by default

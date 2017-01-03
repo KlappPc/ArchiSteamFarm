@@ -5,7 +5,7 @@
  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
 /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
 
- Copyright 2015-2016 Łukasz "JustArchi" Domeradzki
+ Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
  Contact: JustArchi@JustArchi.net
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -82,7 +82,7 @@ namespace ArchiSteamFarm {
 		private readonly SteamClient SteamClient;
 		private readonly ConcurrentHashSet<ulong> SteamFamilySharingIDs = new ConcurrentHashSet<ulong>();
 		private readonly SteamFriends SteamFriends;
-		private readonly SteamSaleEvent SteamSaleEvent;
+		//private readonly SteamSaleEvent SteamSaleEvent;
 		private readonly SteamUser SteamUser;
 		private readonly Trading Trading;
 
@@ -227,7 +227,7 @@ namespace ArchiSteamFarm {
 			CardsFarmer = new CardsFarmer(this);
 			CardsFarmer.SetInitialState(BotConfig.Paused);
 
-			SteamSaleEvent = new SteamSaleEvent(this);
+			//SteamSaleEvent = new SteamSaleEvent(this);
 			Trading = new Trading(this);
 
 			if (Program.GlobalConfig.Statistics) {
@@ -254,7 +254,7 @@ namespace ArchiSteamFarm {
 			InitializationSemaphore.Dispose();
 			SteamFamilySharingIDs.Dispose();
 			OwnedPackageIDs.Dispose();
-			SteamSaleEvent.Dispose();
+			//SteamSaleEvent.Dispose();
 			Trading.Dispose();
 
 			// Those are objects that might be null and the check should be in-place
@@ -1763,6 +1763,10 @@ namespace ArchiSteamFarm {
 
 			if (BotConfig.SteamMasterID == SteamClient.SteamID) {
 				return "You can't loot yourself!";
+			}
+
+			if (BotConfig.LootableTypes.Count == 0) {
+				return "You don't have any lootable types set!";
 			}
 
 			await Trading.LimitInventoryRequestsAsync().ConfigureAwait(false);
