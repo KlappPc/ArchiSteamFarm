@@ -1816,7 +1816,7 @@ namespace ArchiSteamFarm {
         private static async Task<string> ResponseTransfer(ulong steamID, string mode, string botNameFrom, string botNameTo) {
             //standard procedure adapted from loot
             if ((steamID == 0) || string.IsNullOrEmpty(botNameFrom) || string.IsNullOrEmpty(botNameTo) || string.IsNullOrEmpty(mode)) {
-                ASF.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(mode) + " || " + nameof(botNameFrom) + " || " + nameof(botNameTo));
+                Program.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(mode) + " || " + nameof(botNameFrom) + " || " + nameof(botNameTo));
                 return null;
             }
 
@@ -1847,8 +1847,15 @@ namespace ArchiSteamFarm {
             }
 
             await Trading.LimitInventoryRequestsAsync().ConfigureAwait(false);
-
-            HashSet<Steam.Item> inventory = await botFrom.ArchiWebHandler.GetMySteamInventory(true).ConfigureAwait(false);
+            HashSet<Steam.Item.EType> tmp = new HashSet<Steam.Item.EType>();
+            tmp.Add(Steam.Item.EType.Unknown);
+            tmp.Add(Steam.Item.EType.BoosterPack);
+            tmp.Add(Steam.Item.EType.Emoticon);
+            tmp.Add(Steam.Item.EType.FoilTradingCard);
+            tmp.Add(Steam.Item.EType.ProfileBackground);
+            tmp.Add(Steam.Item.EType.SteamGems);
+            tmp.Add(Steam.Item.EType.TradingCard);
+            HashSet<Steam.Item> inventory = await botFrom.ArchiWebHandler.GetMySteamInventory(true, tmp ).ConfigureAwait(false);
             HashSet<Steam.Item> inventoryFull = new HashSet<Steam.Item>(inventory);
             HashSet<Steam.Item> inventoryToSend = new HashSet<Steam.Item>();
 
