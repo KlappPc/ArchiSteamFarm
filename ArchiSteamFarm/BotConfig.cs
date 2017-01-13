@@ -28,6 +28,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using ArchiSteamFarm.JSON;
+using ArchiSteamFarm.Localization;
 using Newtonsoft.Json;
 
 namespace ArchiSteamFarm {
@@ -73,7 +74,11 @@ namespace ArchiSteamFarm {
 		internal readonly bool IsBotAccount = false;
 
 		[JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace, Required = Required.DisallowNull)]
-		internal readonly HashSet<Steam.Item.EType> LootableTypes = new HashSet<Steam.Item.EType> { Steam.Item.EType.BoosterPack, Steam.Item.EType.FoilTradingCard, Steam.Item.EType.TradingCard };
+		internal readonly HashSet<Steam.Item.EType> LootableTypes = new HashSet<Steam.Item.EType> {
+			Steam.Item.EType.BoosterPack,
+			Steam.Item.EType.FoilTradingCard,
+			Steam.Item.EType.TradingCard
+		};
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly CryptoHelper.ECryptoMethod PasswordFormat = CryptoHelper.ECryptoMethod.PlainText;
@@ -92,9 +97,6 @@ namespace ArchiSteamFarm {
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool ShutdownOnFarmingFinished = false;
-
-		[JsonProperty]
-		internal readonly string SteamApiKey = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly ulong SteamMasterClanID = 0;
@@ -156,7 +158,7 @@ namespace ArchiSteamFarm {
 				return botConfig;
 			}
 
-			Program.ArchiLogger.LogGenericWarning("Playing more than " + ArchiHandler.MaxGamesPlayedConcurrently + " games concurrently is not possible, only first " + ArchiHandler.MaxGamesPlayedConcurrently + " entries from GamesPlayedWhileIdle will be used");
+			Program.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningTooManyGamesToPlay, ArchiHandler.MaxGamesPlayedConcurrently, nameof(botConfig.GamesPlayedWhileIdle)));
 
 			HashSet<uint> validGames = new HashSet<uint>(botConfig.GamesPlayedWhileIdle.Take(ArchiHandler.MaxGamesPlayedConcurrently));
 			botConfig.GamesPlayedWhileIdle.IntersectWith(validGames);
