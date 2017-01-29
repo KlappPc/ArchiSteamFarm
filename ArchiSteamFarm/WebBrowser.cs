@@ -58,7 +58,7 @@ namespace ArchiSteamFarm {
 			};
 
 			HttpClient = new HttpClient(httpClientHandler) {
-				Timeout = TimeSpan.FromSeconds(Program.GlobalConfig.HttpTimeout)
+				Timeout = TimeSpan.FromSeconds(Program.GlobalConfig.ConnectionTimeout)
 			};
 
 			// Most web services expect that UserAgent is set, so we declare it globally
@@ -269,7 +269,7 @@ namespace ArchiSteamFarm {
 			}
 
 			HtmlDocument htmlDocument = new HtmlDocument();
-			htmlDocument.LoadHtml(WebUtility.HtmlDecode(content));
+			htmlDocument.LoadHtml(content);
 			return htmlDocument;
 		}
 
@@ -358,7 +358,7 @@ namespace ArchiSteamFarm {
 			}
 
 			HtmlDocument htmlDocument = new HtmlDocument();
-			htmlDocument.LoadHtml(WebUtility.HtmlDecode(content));
+			htmlDocument.LoadHtml(content);
 			return htmlDocument;
 		}
 

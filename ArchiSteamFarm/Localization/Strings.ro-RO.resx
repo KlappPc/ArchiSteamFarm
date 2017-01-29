@@ -188,7 +188,7 @@ StackTrace:
     <value>Nu s-a putut continua cu actualizarea deoarece nu există niciun fișier asemănător executabilul cu care rulează! Asigură-te că executabilul ASF este numit în mod corespunzător!</value>
   </data>
   <data name="ErrorUpdateNoAssets" xml:space="preserve">
-    <value>Nu putem continua cu actualizarea deoarece acea versiune nu conţine niciun fișier!</value>
+    <value>Nu putem continua cu actualizarea deoarece acea versiune nu conține niciun fișier!</value>
   </data>
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>S-a primit o cerere de date introduse de utilizator, dar procesul se execută în modul fără cap (serviciu)!</value>
@@ -335,7 +335,7 @@ StackTrace:
     <comment>{0} will be replaced by bot's name. Please note that this translation should end with space</comment>
   </data>
   <data name="WarningUnknownValuePleaseReport" xml:space="preserve">
-    <value>Am primit o valoare necunoscută pentru {0}, vă rugăm să raportaţi acest lucru: {1}</value>
+    <value>Am primit o valoare necunoscută pentru {0}, te rog să raportezi acest lucru: {1}</value>
     <comment>{0} will be replaced by object's name, {1} will be replaced by value for that object</comment>
   </data>
   <data name="WarningTooManyGamesToPlay" xml:space="preserve">
@@ -692,5 +692,9 @@ StackTrace:
   </data>
   <data name="ErrorInvalidCurrentCulture" xml:space="preserve">
     <value>CurrentCulture furnizată de tine nu este validă, ConfigGenerator va continua să ruleze cu cea implicită!</value>
+  </data>
+  <data name="TranslationIncomplete" xml:space="preserve">
+    <value>ASF va încerca să utilizeze cultura {0} preferată de tine, dar traducerea în această limbă a fost completată în proporție de {1}. Poate că ai putea ajuta la îmbunatățirea traducerii ASF pentru limba ta?</value>
+    <comment>{0} will be replaced by culture code, such as "en-US", {1} will be replaced by completeness percentage, such as "78.5%"</comment>
   </data>
 </root>

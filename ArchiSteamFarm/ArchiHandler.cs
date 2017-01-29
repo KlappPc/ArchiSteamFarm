@@ -39,6 +39,8 @@ namespace ArchiSteamFarm {
 
 		private readonly ArchiLogger ArchiLogger;
 
+		internal DateTime LastPacketReceived { get; private set; } = DateTime.MinValue;
+
 		internal ArchiHandler(ArchiLogger archiLogger) {
 			if (archiLogger == null) {
 				throw new ArgumentNullException(nameof(archiLogger));
@@ -52,6 +54,8 @@ namespace ArchiSteamFarm {
 				ArchiLogger.LogNullError(nameof(packetMsg));
 				return;
 			}
+
+			LastPacketReceived = DateTime.UtcNow;
 
 			switch (packetMsg.MsgType) {
 				case EMsg.ClientFSOfflineMessageNotification:
@@ -155,7 +159,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			PlayGames(new List<uint> { gameID }, gameName);
+			PlayGames(gameID.ToEnumerable(), gameName);
 		}
 
 		internal void PlayGames(IEnumerable<uint> gameIDs, string gameName = null) {
@@ -391,6 +395,7 @@ namespace ArchiSteamFarm {
 				PurchaseResult = (EPurchaseResult) msg.purchase_result_details;
 
 				if (msg.purchase_receipt_info == null) {
+					Program.ArchiLogger.LogNullError(nameof(msg.purchase_receipt_info));
 					return;
 				}
 
@@ -411,7 +416,8 @@ namespace ArchiSteamFarm {
 				foreach (KeyValue lineItem in lineItems) {
 					uint packageID = lineItem["PackageID"].AsUnsignedInteger();
 					if (packageID == 0) {
-						// Valid, coupons have PackageID of -1 (don't ask me why)
+						// Coupons have PackageID of -1 (don't ask me why)
+						// We'll use ItemAppID in this case
 						packageID = lineItem["ItemAppID"].AsUnsignedInteger();
 						if (packageID == 0) {
 							Program.ArchiLogger.LogNullError(nameof(packageID));
@@ -425,8 +431,9 @@ namespace ArchiSteamFarm {
 						return;
 					}
 
-					gameName = WebUtility.HtmlDecode(gameName); // Apparently steam expects client to decode sent HTML
-					Items[packageID] = WebUtility.HtmlDecode(gameName);
+					// Apparently steam expects client to decode sent HTML
+					gameName = WebUtility.HtmlDecode(gameName);
+					Items[packageID] = gameName;
 				}
 			}
 

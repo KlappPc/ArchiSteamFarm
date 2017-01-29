@@ -47,7 +47,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.9.0.2-beta1\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.9.0.2-beta2\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="System" />
@@ -102,6 +102,7 @@
     <EmbeddedResource Include="Localization\CGStrings.da-DK.resx" />
     <EmbeddedResource Include="Localization\CGStrings.de-DE.resx" />
     <EmbeddedResource Include="Localization\CGStrings.el-GR.resx" />
+    <EmbeddedResource Include="Localization\CGStrings.en-GB.resx" />
     <EmbeddedResource Include="Localization\CGStrings.es-ES.resx" />
     <EmbeddedResource Include="Localization\CGStrings.fi-FI.resx" />
     <EmbeddedResource Include="Localization\CGStrings.fr-FR.resx" />

@@ -23,6 +23,7 @@
 */
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
@@ -58,7 +59,7 @@ namespace ArchiSteamFarm {
 			return cookies.Count != 0 ? (from Cookie cookie in cookies where cookie.Name.Equals(name) select cookie.Value).FirstOrDefault() : null;
 		}
 
-		internal static uint GetUnixTime() => (uint) DateTimeOffset.Now.ToUnixTimeSeconds();
+		internal static uint GetUnixTime() => (uint) DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
 		/*
 		internal static int RandomNext(int maxWithout) {
@@ -94,6 +95,10 @@ namespace ArchiSteamFarm {
 			}
 
 			return true;
+		}
+
+		internal static IEnumerable<T> ToEnumerable<T>(this T item) {
+			yield return item;
 		}
 
 		internal static string ToHumanReadable(this TimeSpan timeSpan) {

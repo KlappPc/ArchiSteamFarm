@@ -45,7 +45,7 @@ namespace ArchiSteamFarm {
 		private const string ISteamUserAuth = "ISteamUserAuth";
 		private const string ITwoFactorService = "ITwoFactorService";
 
-		private const byte MinSessionTTL = GlobalConfig.DefaultHttpTimeout / 4; // Assume session is valid for at least that amount of seconds
+		private const byte MinSessionTTL = GlobalConfig.DefaultConnectionTimeout / 4; // Assume session is valid for at least that amount of seconds
 
 		// We must use HTTPS for SteamCommunity, as http would make certain POST requests failing (trades)
 		private const string SteamCommunityHost = "steamcommunity.com";
@@ -55,7 +55,7 @@ namespace ArchiSteamFarm {
 		private const string SteamStoreHost = "store.steampowered.com";
 		private const string SteamStoreURL = "http://" + SteamStoreHost;
 
-		private static int Timeout = GlobalConfig.DefaultHttpTimeout * 1000; // This must be int type
+		private static int Timeout = GlobalConfig.DefaultConnectionTimeout * 1000; // This must be int type
 
 		private readonly Bot Bot;
 		private readonly SemaphoreSlim SessionSemaphore = new SemaphoreSlim(1);
@@ -188,7 +188,7 @@ namespace ArchiSteamFarm {
 							secure: true
 						);
 					} catch (Exception e) {
-						Bot.ArchiLogger.LogGenericException(e);
+						Bot.ArchiLogger.LogGenericWarningException(e);
 					}
 				}
 			}
@@ -240,7 +240,7 @@ namespace ArchiSteamFarm {
 							secure: true
 						);
 					} catch (Exception e) {
-						Bot.ArchiLogger.LogGenericException(e);
+						Bot.ArchiLogger.LogGenericWarningException(e);
 					}
 				}
 			}
@@ -627,7 +627,7 @@ namespace ArchiSteamFarm {
 							secure: true
 						);
 					} catch (Exception e) {
-						Bot.ArchiLogger.LogGenericException(e);
+						Bot.ArchiLogger.LogGenericWarningException(e);
 					}
 				}
 			}
@@ -663,7 +663,7 @@ namespace ArchiSteamFarm {
 							secure: true
 						);
 					} catch (Exception e) {
-						Bot.ArchiLogger.LogGenericException(e);
+						Bot.ArchiLogger.LogGenericWarningException(e);
 					}
 				}
 			}
@@ -786,7 +786,7 @@ namespace ArchiSteamFarm {
 
 		internal async Task<bool> HasValidApiKey() => !string.IsNullOrEmpty(await GetApiKey().ConfigureAwait(false));
 
-		internal static void Init() => Timeout = Program.GlobalConfig.HttpTimeout * 1000;
+		internal static void Init() => Timeout = Program.GlobalConfig.ConnectionTimeout * 1000;
 
 		internal async Task<bool> Init(ulong steamID, EUniverse universe, string webAPIUserNonce, string parentalPin) {
 			if ((steamID == 0) || (universe == EUniverse.Invalid) || string.IsNullOrEmpty(webAPIUserNonce) || string.IsNullOrEmpty(parentalPin)) {
@@ -830,7 +830,7 @@ namespace ArchiSteamFarm {
 						secure: true
 					);
 				} catch (Exception e) {
-					Bot.ArchiLogger.LogGenericException(e);
+					Bot.ArchiLogger.LogGenericWarningException(e);
 					return false;
 				}
 			}
@@ -871,7 +871,7 @@ namespace ArchiSteamFarm {
 			}
 
 			Ready = true;
-			LastSessionRefreshCheck = DateTime.Now;
+			LastSessionRefreshCheck = DateTime.UtcNow;
 			return true;
 		}
 
@@ -1240,20 +1240,20 @@ namespace ArchiSteamFarm {
 		}
 
 		private async Task<bool> RefreshSessionIfNeeded() {
-			if (DateTime.Now.Subtract(LastSessionRefreshCheck).TotalSeconds < MinSessionTTL) {
+			if (DateTime.UtcNow.Subtract(LastSessionRefreshCheck).TotalSeconds < MinSessionTTL) {
 				return true;
 			}
 
 			await SessionSemaphore.WaitAsync().ConfigureAwait(false);
 
 			try {
-				if (DateTime.Now.Subtract(LastSessionRefreshCheck).TotalSeconds < MinSessionTTL) {
+				if (DateTime.UtcNow.Subtract(LastSessionRefreshCheck).TotalSeconds < MinSessionTTL) {
 					return true;
 				}
 
 				bool? isLoggedIn = await IsLoggedIn().ConfigureAwait(false);
 				if (isLoggedIn.GetValueOrDefault(true)) {
-					LastSessionRefreshCheck = DateTime.Now;
+					LastSessionRefreshCheck = DateTime.UtcNow;
 					return true;
 				} else {
 					Bot.ArchiLogger.LogGenericInfo(Strings.RefreshingOurSession);

@@ -48,6 +48,7 @@ namespace ArchiSteamFarm {
 		private const uint LoginID = GlobalConfig.DefaultWCFPort; // This must be the same for all ASF bots and all ASF processes
 		private const ushort MaxSteamMessageLength = 2048;
 		private const byte MaxTwoFactorCodeFailures = 3;
+		private const byte MinHeartBeatTTL = GlobalConfig.DefaultConnectionTimeout; // Assume client is responsive for at least that amount of seconds
 
 		internal static readonly ConcurrentDictionary<string, Bot> Bots = new ConcurrentDictionary<string, Bot>();
 
@@ -102,6 +103,7 @@ namespace ArchiSteamFarm {
 		private Timer ConnectionFailureTimer;
 		private Timer FamilySharingInactivityTimer;
 		private bool FirstTradeSent;
+		private byte HeartBeatFailures;
 		private EResult LastLogOnResult;
 
         private List<uint> GamesReady = new List<uint>();
@@ -773,20 +775,27 @@ namespace ArchiSteamFarm {
 		}
 
 		private async Task HeartBeat() {
-			if (!KeepRunning || !IsConnectedAndLoggedOn) {
+			if (!KeepRunning || !IsConnectedAndLoggedOn || (HeartBeatFailures == byte.MaxValue)) {
 				return;
 			}
 
 			try {
-				await SteamApps.PICSGetProductInfo(0, null);
+				if (DateTime.UtcNow.Subtract(ArchiHandler.LastPacketReceived).TotalSeconds > MinHeartBeatTTL) {
+					await SteamApps.PICSGetProductInfo(0, null);
+				}
+
+				HeartBeatFailures = 0;
 				Statistics?.OnHeartBeat().Forget();
 			} catch {
-				if (!KeepRunning || !IsConnectedAndLoggedOn) {
+				if (!KeepRunning || !IsConnectedAndLoggedOn || (HeartBeatFailures == byte.MaxValue)) {
 					return;
 				}
 
-				ArchiLogger.LogGenericWarning(Strings.BotConnectionLost);
-				Connect(true).Forget();
+				if (++HeartBeatFailures > (byte) Math.Ceiling(Program.GlobalConfig.ConnectionTimeout / 10.0)) {
+					HeartBeatFailures = byte.MaxValue;
+					ArchiLogger.LogGenericWarning(Strings.BotConnectionLost);
+					Connect(true).Forget();
+				}
 			}
 		}
 
@@ -835,7 +844,7 @@ namespace ArchiSteamFarm {
 			ConnectionFailureTimer = new Timer(
 				e => InitPermanentConnectionFailure(),
 				null,
-				TimeSpan.FromMinutes(2), // Delay
+				TimeSpan.FromMinutes(Math.Ceiling(Program.GlobalConfig.ConnectionTimeout / 30.0)), // Delay
 				Timeout.InfiniteTimeSpan // Period
 			);
 		}
@@ -914,7 +923,7 @@ namespace ArchiSteamFarm {
 
 		private static bool IsValidCdKey(string key) {
 			if (!string.IsNullOrEmpty(key)) {
-				return Regex.IsMatch(key, @"^[0-9A-Z]{4,7}-[0-9A-Z]{4,7}-[0-9A-Z]{4,7}(?:(?:-[0-9A-Z]{4,7})?(?:-[0-9A-Z]{4,7}))?$", RegexOptions.IgnoreCase);
+				return Regex.IsMatch(key, @"^[0-9A-Z]{4,7}-[0-9A-Z]{4,7}-[0-9A-Z]{4,7}(?:(?:-[0-9A-Z]{4,7})?(?:-[0-9A-Z]{4,7}))?$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
 			}
 
 			Program.ArchiLogger.LogNullError(nameof(key));
@@ -1006,6 +1015,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
+			HeartBeatFailures = 0;
 			StopConnectionFailureTimer();
 
 			if (callback.Result != EResult.OK) {
@@ -1081,6 +1091,7 @@ namespace ArchiSteamFarm {
 
 			EResult lastLogOnResult = LastLogOnResult;
 			LastLogOnResult = EResult.Invalid;
+			HeartBeatFailures = 0;
 			StopConnectionFailureTimer();
 
 			ArchiLogger.LogGenericInfo(Strings.BotDisconnected);
@@ -1249,7 +1260,7 @@ namespace ArchiSteamFarm {
 			await Task.Delay(1000).ConfigureAwait(false); // Wait a second for eventual PlayingSessionStateCallback or SharedLibraryLockStatusCallback
 
 			if (!ArchiWebHandler.Ready) {
-				for (byte i = 0; (i < Program.GlobalConfig.HttpTimeout) && !ArchiWebHandler.Ready; i++) {
+				for (byte i = 0; (i < Program.GlobalConfig.ConnectionTimeout) && !ArchiWebHandler.Ready; i++) {
 					await Task.Delay(1000).ConfigureAwait(false);
 				}
 
@@ -1296,6 +1307,7 @@ namespace ArchiSteamFarm {
 			// Keep LastLogOnResult for OnDisconnected()
 			LastLogOnResult = callback.Result;
 
+			HeartBeatFailures = 0;
 			StopConnectionFailureTimer();
 
 			switch (callback.Result) {
@@ -2456,7 +2468,7 @@ namespace ArchiSteamFarm {
 											response.Append(Environment.NewLine + string.Format(Strings.BotRedeemResponse, currentBot.BotName, key, result.PurchaseResult));
 										}
 
-										if (result.PurchaseResult == ArchiHandler.PurchaseResponseCallback.EPurchaseResult.OK) {
+										if (result.PurchaseResult != ArchiHandler.PurchaseResponseCallback.EPurchaseResult.Timeout) {
 											unusedKeys.Remove(key);
 										}
 
@@ -2502,11 +2514,7 @@ namespace ArchiSteamFarm {
 												case ArchiHandler.PurchaseResponseCallback.EPurchaseResult.InvalidKey:
 												case ArchiHandler.PurchaseResponseCallback.EPurchaseResult.OK:
 													alreadyHandled = true; // This key is already handled, as we either redeemed it or we're sure it's dupe/invalid
-
-													if (otherResult.PurchaseResult == ArchiHandler.PurchaseResponseCallback.EPurchaseResult.OK) {
-														unusedKeys.Remove(key);
-													}
-
+													unusedKeys.Remove(key);
 													break;
 											}
 
@@ -2874,7 +2882,7 @@ namespace ArchiSteamFarm {
 		private async Task Start() {
 			if (!KeepRunning) {
 				KeepRunning = true;
-				Task.Run(() => HandleCallbacks()).Forget();
+				Task.Factory.StartNew(HandleCallbacks, TaskCreationOptions.DenyChildAttach | TaskCreationOptions.LongRunning).Forget();
 				ArchiLogger.LogGenericInfo(Strings.Starting);
 			}
 

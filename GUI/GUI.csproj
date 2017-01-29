@@ -49,11 +49,11 @@
       <Private>True</Private>
     </Reference>
     <Reference Include="Newtonsoft.Json, Version=9.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.9.0.2-beta1\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\packages\Newtonsoft.Json.9.0.2-beta2\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="NLog, Version=5.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
-      <HintPath>..\packages\NLog.5.0.0-beta04\lib\net45\NLog.dll</HintPath>
+      <HintPath>..\packages\NLog.5.0.0-beta05-test\lib\net45\NLog.dll</HintPath>
       <Private>True</Private>
     </Reference>
     <Reference Include="NLog.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
@@ -208,6 +208,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="..\ArchiSteamFarm\Localization\Strings.el-GR.resx">
       <Link>Localization\Strings.el-GR.resx</Link>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\ArchiSteamFarm\Localization\Strings.en-GB.resx">
+      <Link>Localization\Strings.en-GB.resx</Link>
     </EmbeddedResource>
     <EmbeddedResource Include="..\ArchiSteamFarm\Localization\Strings.es-ES.resx">
       <Link>Localization\Strings.es-ES.resx</Link>
