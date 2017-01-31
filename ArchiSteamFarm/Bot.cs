@@ -617,14 +617,12 @@ namespace ArchiSteamFarm {
 					if (args.Length > 2) {
 						return await ResponseOwns(steamID, args[1], args[2]).ConfigureAwait(false);
 					}
-					return await ResponseOwns(steamID, args[1]).ConfigureAwait(false););
+					return await ResponseOwns(steamID, args[1]).ConfigureAwait(false);
                 case "!TRANSFER":
                     if (args.Length <= 3) {
                         return ResponseUnknown(steamID); //think of how to handle missing info.
                     }
                     return await ResponseTransfer(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
-                case "!OWNSALL":
-					return await ResponseOwnsAll(steamID, args[1]).ConfigureAwait(false);
 				case "!PASSWORD":
 					return await ResponsePassword(steamID, args[1]).ConfigureAwait(false);
 				case "!PAUSE":
@@ -2039,7 +2037,7 @@ namespace ArchiSteamFarm {
         private static async Task<string> ResponseTransfer(ulong steamID, string mode, string botNameFrom, string botNameTo) {
             //standard procedure adapted from loot
             if ((steamID == 0) || string.IsNullOrEmpty(botNameFrom) || string.IsNullOrEmpty(botNameTo) || string.IsNullOrEmpty(mode)) {
-                Program.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(mode) + " || " + nameof(botNameFrom) + " || " + nameof(botNameTo));
+                //ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(mode) + " || " + nameof(botNameFrom) + " || " + nameof(botNameTo));
                 return null;
             }
 
