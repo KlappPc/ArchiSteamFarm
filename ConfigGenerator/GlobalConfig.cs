@@ -98,6 +98,10 @@ namespace ConfigGenerator {
 		[JsonProperty(Required = Required.DisallowNull)]
 		public byte MaxTradeHoldDuration { get; set; } = 15;
 
+		[LocalizedCategory("Performance")]
+		[JsonProperty(Required = Required.DisallowNull)]
+		public EOptimizationMode OptimizationMode { get; set; } = EOptimizationMode.MaxPerformance;
+
 		[JsonProperty(Required = Required.DisallowNull)]
 		public bool Statistics { get; set; } = true;
 
@@ -204,6 +208,11 @@ namespace ConfigGenerator {
 			WCFPort = DefaultWCFPort;
 			Save();
 			Logging.LogGenericWarning(string.Format(CGStrings.WarningConfigPropertyModified, nameof(WCFPort), WCFPort));
+		}
+
+		internal enum EOptimizationMode : byte {
+			MaxPerformance,
+			MinMemoryUsage
 		}
 
 		internal enum EUpdateChannel : byte {
