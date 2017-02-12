@@ -51,10 +51,7 @@ namespace ArchiSteamFarm {
 			Bot = bot;
 		}
 
-		public void Dispose() {
-			IgnoredTrades.Dispose();
-			TradesSemaphore.Dispose();
-		}
+		public void Dispose() => TradesSemaphore.Dispose();
 
 		internal async Task CheckTrades() {
 			// We aim to have a maximum of 2 tasks, one already parsing, and one waiting in the queue
@@ -192,7 +189,7 @@ namespace ArchiSteamFarm {
 				// If it's steam fuckup, temporarily ignore it, otherwise react accordingly, depending on our preference
 				if (tradeOffer.ItemsToReceive.Count == 0) {
 					donationResult = ParseTradeResult.EResult.RejectedTemporarily;
-				} else if (Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.AcceptDonations) || ((tradeOffer.OtherSteamID64 != 0) && Bot.Bots.Values.Any(bot => bot.SteamID == tradeOffer.OtherSteamID64))) {
+				} else if (Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.AcceptDonations) || (!Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.DontAcceptBotTrades) && (tradeOffer.OtherSteamID64 != 0) && Bot.Bots.Values.Any(bot => bot.SteamID == tradeOffer.OtherSteamID64))) {
 					donationResult = ParseTradeResult.EResult.AcceptedWithoutItemLose;
 				} else {
 					donationResult = ParseTradeResult.EResult.RejectedPermanently;

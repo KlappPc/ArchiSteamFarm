@@ -83,6 +83,18 @@
       <HintPath>..\packages\Newtonsoft.Json.9.0.2-beta2\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Nito.AsyncEx, Version=4.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nito.AsyncEx.4.0.1\lib\net45\Nito.AsyncEx.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Nito.AsyncEx.Concurrent, Version=4.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nito.AsyncEx.4.0.1\lib\net45\Nito.AsyncEx.Concurrent.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Nito.AsyncEx.Enlightenment, Version=4.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nito.AsyncEx.4.0.1\lib\net45\Nito.AsyncEx.Enlightenment.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="NLog, Version=5.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
       <HintPath>..\packages\NLog.5.0.0-beta05-test\lib\net45\NLog.dll</HintPath>
       <Private>True</Private>
@@ -99,6 +111,7 @@
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net" />
     <Reference Include="System.Security" />
     <Reference Include="System.ServiceModel" />
     <Reference Include="Microsoft.CSharp" />
@@ -138,6 +151,7 @@
     <Compile Include="Logging.cs" />
     <Compile Include="InMemoryServerListProvider.cs" />
     <Compile Include="MobileAuthenticator.cs" />
+    <Compile Include="OS.cs" />
     <Compile Include="Runtime.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -205,6 +219,7 @@
     <EmbeddedResource Include="Localization\Strings.ko-KR.resx" />
     <EmbeddedResource Include="Localization\Strings.lt-LT.resx" />
     <EmbeddedResource Include="Localization\Strings.mk-MK.resx" />
+    <EmbeddedResource Include="Localization\Strings.nl-BE.resx" />
     <EmbeddedResource Include="Localization\Strings.nl-NL.resx" />
     <EmbeddedResource Include="Localization\Strings.no-NO.resx" />
     <EmbeddedResource Include="Localization\Strings.pl-PL.resx" />
@@ -242,6 +257,7 @@
       copy "$(TargetDir)$(TargetName).exe" "$(SolutionDir)out\ASF.exe"
     </PostBuildEvent>
     <PostBuildEvent Condition=" '$(OS)' == 'Unix' AND '$(ConfigurationName)' == 'Release' ">
+      set -e
       if [ -f "$(SolutionDir)mono_envsetup.sh" ]; then
         . "$(SolutionDir)mono_envsetup.sh"
       fi
@@ -250,7 +266,13 @@
       cp "$(TargetDir)config/ASF.json" "$(SolutionDir)out/config"
       cp "$(TargetDir)config/example.json" "$(SolutionDir)out/config"
       cp "$(TargetDir)config/minimal.json" "$(SolutionDir)out/config"
-      mono "$(SolutionDir)tools/ILRepack/ILRepack.exe" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-Service.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
+
+      if [ -n "$MONO_FACADES" ]; then
+        mono "$(SolutionDir)tools/ILRepack/ILRepack.exe" "/lib:$MONO_FACADES" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-Service.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
+      else
+        mono "$(SolutionDir)tools/ILRepack/ILRepack.exe" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-Service.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
+      fi
+
       rm "$(SolutionDir)out/ASF-Service.exe.config"
       cp "$(SolutionDir)out/ASF-Service.exe" "$(SolutionDir)out/ASF.exe"
     </PostBuildEvent>
@@ -262,10 +284,12 @@
     <Error Condition="!Exists('..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets'))" />
     <Error Condition="!Exists('..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets'))" />
     <Error Condition="!Exists('..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets'))" />
+    <Error Condition="!Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets'))" />
   </Target>
   <Import Project="..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets')" />
   <Import Project="..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets')" />
   <Import Project="..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets')" />
+  <Import Project="..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets" Condition="Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

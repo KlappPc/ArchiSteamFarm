@@ -26,6 +26,7 @@ using System;
 using System.Linq;
 using System.ServiceModel;
 using System.ServiceModel.Channels;
+using System.ServiceModel.Description;
 using ArchiSteamFarm.Localization;
 
 namespace ArchiSteamFarm {
@@ -39,8 +40,6 @@ namespace ArchiSteamFarm {
 	}
 
 	internal sealed class WCF : IWCF, IDisposable {
-		private static string URL = "net.tcp://127.0.0.1:1242/ASF";
-
 		internal bool IsServerRunning => ServiceHost != null;
 
 		private Client Client;
@@ -68,11 +67,13 @@ namespace ArchiSteamFarm {
 				return Strings.ErrorNoBotsDefined;
 			}
 
-			string command = "!" + input;
+			if (input[0] != '!') {
+				input = "!" + input;
+			}
 
 			// TODO: This should be asynchronous, but for some reason Mono doesn't return any WCF output if it is
 			// We must keep it synchronous until either Mono gets fixed, or culprit for freeze located (and corrected)
-			string output = bot.Response(Program.GlobalConfig.SteamOwnerID, command).Result;
+			string output = bot.Response(Program.GlobalConfig.SteamOwnerID, input).Result;
 
 			ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.WCFAnswered, input, output));
 			return output;
@@ -81,12 +82,7 @@ namespace ArchiSteamFarm {
 		internal static void Init() {
 			if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHost)) {
 				Program.GlobalConfig.WCFHost = Program.GetUserInput(ASF.EUserInputType.WCFHostname);
-				if (string.IsNullOrEmpty(Program.GlobalConfig.WCFHost)) {
-					return;
-				}
 			}
-
-			URL = "net.tcp://" + Program.GlobalConfig.WCFHost + ":" + Program.GlobalConfig.WCFPort + "/ASF";
 		}
 
 		internal string SendCommand(string input) {
@@ -95,17 +91,24 @@ namespace ArchiSteamFarm {
 				return null;
 			}
 
-			ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.WCFSendingCommand, input, URL));
+			Binding binding = GetTargetBinding();
+			if (binding == null) {
+				ASF.ArchiLogger.LogNullError(nameof(binding));
+				return null;
+			}
+
+			string url = GetUrlFromBinding(binding);
+			if (string.IsNullOrEmpty(url)) {
+				ASF.ArchiLogger.LogNullError(nameof(url));
+				return null;
+			}
+
+			ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.WCFSendingCommand, input, url));
 
 			if (Client == null) {
 				Client = new Client(
-					new NetTcpBinding {
-						// We use SecurityMode.None for Mono compatibility
-						// Yes, also on Windows, for Mono<->Windows communication
-						Security = { Mode = SecurityMode.None },
-						SendTimeout = new TimeSpan(0, 0, Program.GlobalConfig.ConnectionTimeout)
-					},
-					new EndpointAddress(URL)
+					binding,
+					new EndpointAddress(url)
 				);
 			}
 
@@ -117,28 +120,65 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.WCFStarting, URL));
+			Binding binding = GetTargetBinding();
+			if (binding == null) {
+				ASF.ArchiLogger.LogNullError(nameof(binding));
+				return;
+			}
+
+			string url = GetUrlFromBinding(binding);
+			if (string.IsNullOrEmpty(url)) {
+				ASF.ArchiLogger.LogNullError(nameof(url));
+				return;
+			}
+
+			ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.WCFStarting, url));
+
+			Uri uri;
 
 			try {
-				ServiceHost = new ServiceHost(typeof(WCF), new Uri(URL));
-				ServiceHost.AddServiceEndpoint(
-					typeof(IWCF),
-					new NetTcpBinding {
-						// We use SecurityMode.None for Mono compatibility
-						// Yes, also on Windows, for Mono<->Windows communication
-						Security = { Mode = SecurityMode.None },
-						SendTimeout = new TimeSpan(0, 0, Program.GlobalConfig.ConnectionTimeout)
-					},
-					string.Empty
-				);
-				ServiceHost.Open();
+				uri = new Uri(url);
+			} catch (UriFormatException e) {
+				ASF.ArchiLogger.LogGenericException(e);
+				return;
+			}
 
-				ASF.ArchiLogger.LogGenericInfo(Strings.WCFReady);
+			ServiceHost = new ServiceHost(typeof(WCF), uri);
+
+			ServiceHost.AddServiceEndpoint(
+				typeof(IWCF),
+				binding,
+				string.Empty
+			);
+
+			ServiceMetadataBehavior smb = new ServiceMetadataBehavior();
+			switch (binding.Scheme) {
+				case "http":
+					smb.HttpGetEnabled = true;
+					break;
+				case "https":
+					smb.HttpsGetEnabled = true;
+					break;
+				case "net.tcp":
+					break;
+				default:
+					ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(binding.Scheme), binding.Scheme));
+					goto case "net.tcp";
+			}
+
+			ServiceHost.Description.Behaviors.Add(smb);
+
+			try {
+				ServiceHost.Open();
 			} catch (AddressAccessDeniedException) {
 				ASF.ArchiLogger.LogGenericError(Strings.ErrorWCFAddressAccessDeniedException);
+				return;
 			} catch (Exception e) {
 				ASF.ArchiLogger.LogGenericException(e);
+				return;
 			}
+
+			ASF.ArchiLogger.LogGenericInfo(Strings.WCFReady);
 		}
 
 		internal void StopServer() {
@@ -155,6 +195,46 @@ namespace ArchiSteamFarm {
 			}
 
 			ServiceHost = null;
+		}
+
+		private static Binding GetTargetBinding() {
+			Binding result;
+			switch (Program.GlobalConfig.WCFBinding) {
+				case GlobalConfig.EWCFBinding.NetTcp:
+					result = new NetTcpBinding {
+						// We use SecurityMode.None for Mono compatibility
+						// Yes, also on Windows, for Mono<->Windows communication
+						Security = { Mode = SecurityMode.None }
+					};
+
+					break;
+				case GlobalConfig.EWCFBinding.BasicHttp:
+					result = new BasicHttpBinding();
+					break;
+				case GlobalConfig.EWCFBinding.WSHttp:
+					result = new WSHttpBinding {
+						// We use SecurityMode.None for Mono compatibility
+						// Yes, also on Windows, for Mono<->Windows communication
+						Security = { Mode = SecurityMode.None }
+					};
+
+					break;
+				default:
+					ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(Program.GlobalConfig.WCFBinding), Program.GlobalConfig.WCFBinding));
+					goto case GlobalConfig.EWCFBinding.NetTcp;
+			}
+
+			result.SendTimeout = new TimeSpan(0, 0, Program.GlobalConfig.ConnectionTimeout);
+			return result;
+		}
+
+		private static string GetUrlFromBinding(Binding binding) {
+			if (binding != null) {
+				return binding.Scheme + "://" + Program.GlobalConfig.WCFHost + ":" + Program.GlobalConfig.WCFPort + "/ASF";
+			}
+
+			ASF.ArchiLogger.LogNullError(nameof(binding));
+			return null;
 		}
 
 		private void StopClient() {

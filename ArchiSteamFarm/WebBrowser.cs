@@ -81,10 +81,22 @@ namespace ArchiSteamFarm {
 			// Therefore, call mono-incompatible options in their own function to avoid that, and just leave the function call here
 			// When compiling on Mono, this section is omitted entirely as we never run Mono-compiled ASF on Windows
 			// Moreover, Mono compiler doesn't even include ReusePort field in ServicePointManager, so it's crucial to avoid compilation error
-			if (Runtime.IsRuntimeSupported && !Runtime.IsRunningOnMono) {
+			if (!Runtime.IsRunningOnMono) {
 				InitNonMonoBehaviour();
 			}
 #endif
+		}
+
+		internal static HtmlDocument StringToHtmlDocument(string html) {
+			if (string.IsNullOrEmpty(html)) {
+				ASF.ArchiLogger.LogNullError(nameof(html));
+				return null;
+			}
+
+			HtmlDocument htmlDocument = new HtmlDocument();
+			htmlDocument.LoadHtml(html);
+
+			return htmlDocument;
 		}
 
 		internal async Task<byte[]> UrlGetToBytesRetry(string request, string referer = null) {
@@ -264,13 +276,7 @@ namespace ArchiSteamFarm {
 			}
 
 			string content = await UrlPostToContentRetry(request, data, referer).ConfigureAwait(false);
-			if (string.IsNullOrEmpty(content)) {
-				return null;
-			}
-
-			HtmlDocument htmlDocument = new HtmlDocument();
-			htmlDocument.LoadHtml(content);
-			return htmlDocument;
+			return !string.IsNullOrEmpty(content) ? StringToHtmlDocument(content) : null;
 		}
 
 		internal async Task<T> UrlPostToJsonResultRetry<T>(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
@@ -353,13 +359,7 @@ namespace ArchiSteamFarm {
 			}
 
 			string content = await UrlGetToContent(request, referer).ConfigureAwait(false);
-			if (string.IsNullOrEmpty(content)) {
-				return null;
-			}
-
-			HtmlDocument htmlDocument = new HtmlDocument();
-			htmlDocument.LoadHtml(content);
-			return htmlDocument;
+			return !string.IsNullOrEmpty(content) ? StringToHtmlDocument(content) : null;
 		}
 
 		private async Task<JObject> UrlGetToJObject(string request, string referer = null) {

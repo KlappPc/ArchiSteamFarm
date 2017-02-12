@@ -4,7 +4,7 @@
 	"CardDropsRestricted": true,
 	"CustomGamePlayedWhileFarming": null,
 	"CustomGamePlayedWhileIdle": null,
-	"DismissInventoryNotifications": true,
+	"DismissInventoryNotifications": false,
 	"Enabled": false,
 	"FarmingOrder": 0,
 	"FarmOffline": false,
@@ -28,5 +28,5 @@
 	"SteamParentalPIN": "0",
 	"SteamPassword": null,
 	"SteamTradeToken": null,
-	"TradingPreferences": 1
+	"TradingPreferences": 0
 }

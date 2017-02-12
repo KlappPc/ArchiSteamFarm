@@ -86,8 +86,6 @@ namespace ArchiSteamFarm {
 
 		public void Dispose() {
 			// Those are objects that are always being created if constructor doesn't throw exception
-			CurrentGamesFarming.Dispose();
-			GamesToFarm.Dispose();
 			FarmingSemaphore.Dispose();
 			FarmResetEvent.Dispose();
 
@@ -464,9 +462,9 @@ namespace ArchiSteamFarm {
 				ushort cardsRemaining = 0;
 				Match progressMatch = Regex.Match(progressText, @"\d+");
 
-				// This might fail if we have no card drops remaining, that's fine
+				// This might fail if we have no card drops remaining, 0 is not printed in this case - that's fine
 				if (progressMatch.Success) {
-					if (!ushort.TryParse(progressMatch.Value, out cardsRemaining)) {
+					if (!ushort.TryParse(progressMatch.Value, out cardsRemaining) || (cardsRemaining == 0)) {
 						Bot.ArchiLogger.LogNullError(nameof(cardsRemaining));
 						continue;
 					}
@@ -529,12 +527,12 @@ namespace ArchiSteamFarm {
 					continue;
 				}
 
-				float hours = 0;
+				float hours = 0.0F;
 				Match hoursMatch = Regex.Match(hoursString, @"[0-9\.,]+");
 
-				// This might fail if we have exactly 0.0 hours played, that's fine
+				// This might fail if we have exactly 0.0 hours played, as it's not printed in that case - that's fine
 				if (hoursMatch.Success) {
-					if (!float.TryParse(hoursMatch.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out hours)) {
+					if (!float.TryParse(hoursMatch.Value, NumberStyles.Number, CultureInfo.InvariantCulture, out hours) || (hours <= 0.0F)) {
 						Bot.ArchiLogger.LogNullError(nameof(hours));
 						continue;
 					}

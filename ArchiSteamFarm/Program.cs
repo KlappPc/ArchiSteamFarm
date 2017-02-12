@@ -130,50 +130,27 @@ namespace ArchiSteamFarm {
 		}
 
 		private static async Task Init(string[] args) {
-			// We must register our logging target as soon as possible
-			Target.Register<SteamTarget>("Steam");
-			await InitCore(args).ConfigureAwait(false);
-		}
-
-		private static async Task InitCore(string[] args) {
 			AppDomain.CurrentDomain.UnhandledException += UnhandledExceptionHandler;
 			TaskScheduler.UnobservedTaskException += UnobservedTaskExceptionHandler;
 
-			string homeDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-			if (!string.IsNullOrEmpty(homeDirectory)) {
-				Directory.SetCurrentDirectory(homeDirectory);
+			// We must register our logging target as soon as possible
+			Target.Register<SteamTarget>("Steam");
 
-				// Allow loading configs from source tree if it's a debug build
-				if (Debugging.IsDebugBuild) {
-					// Common structure is bin/(x64/)Debug/ArchiSteamFarm.exe, so we allow up to 4 directories up
-					for (byte i = 0; i < 4; i++) {
-						Directory.SetCurrentDirectory("..");
-						if (Directory.Exists(SharedInfo.ConfigDirectory)) {
-							break;
-						}
-					}
+			InitCore(args);
+			await InitASF(args).ConfigureAwait(false);
+		}
 
-					// If config directory doesn't exist after our adjustment, abort all of that
-					if (!Directory.Exists(SharedInfo.ConfigDirectory)) {
-						Directory.SetCurrentDirectory(homeDirectory);
-					}
-				}
-			}
-
-			// Parse pre-init args
-			if (args != null) {
-				ParsePreInitArgs(args);
-			}
-
-			Logging.InitLoggers();
+		private static async Task InitASF(string[] args) {
 			ASF.ArchiLogger.LogGenericInfo("ASF V" + SharedInfo.Version);
 
-			await InitServices().ConfigureAwait(false);
+			await InitGlobalConfigAndLanguage().ConfigureAwait(false);
 
 			if (!Runtime.IsRuntimeSupported) {
 				ASF.ArchiLogger.LogGenericError(Strings.WarningRuntimeUnsupported);
-				await Task.Delay(10 * 1000).ConfigureAwait(false);
+				await Task.Delay(60 * 1000).ConfigureAwait(false);
 			}
+
+			await InitGlobalDatabaseAndServices().ConfigureAwait(false);
 
 			// If debugging is on, we prepare debug directory prior to running
 			if (GlobalConfig.Debug) {
@@ -207,7 +184,37 @@ namespace ArchiSteamFarm {
 			ASF.InitFileWatcher();
 		}
 
-		private static async Task InitServices() {
+		private static void InitCore(string[] args) {
+			string homeDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
+			if (!string.IsNullOrEmpty(homeDirectory)) {
+				Directory.SetCurrentDirectory(homeDirectory);
+
+				// Allow loading configs from source tree if it's a debug build
+				if (Debugging.IsDebugBuild) {
+					// Common structure is bin/(x64/)Debug/ArchiSteamFarm.exe, so we allow up to 4 directories up
+					for (byte i = 0; i < 4; i++) {
+						Directory.SetCurrentDirectory("..");
+						if (Directory.Exists(SharedInfo.ConfigDirectory)) {
+							break;
+						}
+					}
+
+					// If config directory doesn't exist after our adjustment, abort all of that
+					if (!Directory.Exists(SharedInfo.ConfigDirectory)) {
+						Directory.SetCurrentDirectory(homeDirectory);
+					}
+				}
+			}
+
+			// Parse pre-init args
+			if (args != null) {
+				ParsePreInitArgs(args);
+			}
+
+			Logging.InitLoggers();
+		}
+
+		private static async Task InitGlobalConfigAndLanguage() {
 			string globalConfigFile = Path.Combine(SharedInfo.ConfigDirectory, SharedInfo.GlobalConfigFileName);
 
 			GlobalConfig = GlobalConfig.Load(globalConfigFile);
@@ -228,24 +235,29 @@ namespace ArchiSteamFarm {
 				}
 			}
 
-			int defaultResourceSetCount = 0;
-			int currentResourceSetCount = 0;
-
-			ResourceSet defaultResourceSet = Strings.ResourceManager.GetResourceSet(CultureInfo.CreateSpecificCulture("en-US"), true, true);
+			ushort defaultResourceSetCount = 0;
+			ResourceSet defaultResourceSet = Strings.ResourceManager.GetResourceSet(CultureInfo.GetCultureInfo("en-US"), true, true);
 			if (defaultResourceSet != null) {
-				defaultResourceSetCount = defaultResourceSet.Cast<object>().Count();
+				defaultResourceSetCount = (ushort) defaultResourceSet.Cast<object>().Count();
 			}
 
+			if (defaultResourceSetCount == 0) {
+				return;
+			}
+
+			ushort currentResourceSetCount = 0;
 			ResourceSet currentResourceSet = Strings.ResourceManager.GetResourceSet(CultureInfo.CurrentCulture, true, false);
 			if (currentResourceSet != null) {
-				currentResourceSetCount = currentResourceSet.Cast<object>().Count();
+				currentResourceSetCount = (ushort) currentResourceSet.Cast<object>().Count();
 			}
 
 			if (currentResourceSetCount < defaultResourceSetCount) {
 				float translationCompleteness = currentResourceSetCount / (float) defaultResourceSetCount;
 				ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.TranslationIncomplete, CultureInfo.CurrentCulture.Name, translationCompleteness.ToString("P1")));
 			}
+		}
 
+		private static async Task InitGlobalDatabaseAndServices() {
 			string globalDatabaseFile = Path.Combine(SharedInfo.ConfigDirectory, SharedInfo.GlobalDatabaseFileName);
 
 			if (!File.Exists(globalDatabaseFile)) {
@@ -263,8 +275,9 @@ namespace ArchiSteamFarm {
 			}
 
 			ArchiWebHandler.Init();
-			WebBrowser.Init();
+			OS.Init();
 			WCF.Init();
+			WebBrowser.Init();
 
 			WebBrowser = new WebBrowser(ASF.ArchiLogger);
 		}
@@ -386,17 +399,19 @@ namespace ArchiSteamFarm {
 			}
 
 			ASF.ArchiLogger.LogFatalException((Exception) args.ExceptionObject);
+			await Task.Delay(5000).ConfigureAwait(false);
 			await Exit(1).ConfigureAwait(false);
 		}
 
-		private static async void UnobservedTaskExceptionHandler(object sender, UnobservedTaskExceptionEventArgs args) {
+		private static void UnobservedTaskExceptionHandler(object sender, UnobservedTaskExceptionEventArgs args) {
 			if (args?.Exception == null) {
 				ASF.ArchiLogger.LogNullError(nameof(args) + " || " + nameof(args.Exception));
 				return;
 			}
 
 			ASF.ArchiLogger.LogFatalException(args.Exception);
-			await Exit(1).ConfigureAwait(false);
+			// Normally we should abort the application here, but many tasks are in fact failing in SK2 code which we can't easily fix
+			// Thanks Valve.
 		}
 
 		[Flags]

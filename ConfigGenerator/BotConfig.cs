@@ -55,7 +55,7 @@ namespace ConfigGenerator {
 		public string CustomGamePlayedWhileIdle { get; set; } = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		public bool DismissInventoryNotifications { get; set; } = true;
+		public bool DismissInventoryNotifications { get; set; } = false;
 
 		[LocalizedCategory("Core")]
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -136,7 +136,7 @@ namespace ConfigGenerator {
 		[LocalizedCategory("Advanced")]
 		[Editor(typeof(FlagEnumUiEditor), typeof(UITypeEditor))]
 		[JsonProperty(Required = Required.DisallowNull)]
-		public ETradingPreferences TradingPreferences { get; set; } = ETradingPreferences.AcceptDonations;
+		public ETradingPreferences TradingPreferences { get; set; } = ETradingPreferences.None;
 
 		[SuppressMessage("ReSharper", "UnusedMember.Local")]
 		private BotConfig() { }
@@ -207,7 +207,8 @@ namespace ConfigGenerator {
 			None = 0,
 			AcceptDonations = 1,
 			SteamTradeMatcher = 2,
-			MatchEverything = 4
+			MatchEverything = 4,
+			DontAcceptBotTrades = 8
 		}
 	}
 }

@@ -53,7 +53,7 @@ namespace ArchiSteamFarm {
 		internal readonly string CustomGamePlayedWhileIdle = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly bool DismissInventoryNotifications = true;
+		internal readonly bool DismissInventoryNotifications = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool Enabled = false;
@@ -108,7 +108,7 @@ namespace ArchiSteamFarm {
 		internal readonly string SteamTradeToken = null;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly ETradingPreferences TradingPreferences = ETradingPreferences.AcceptDonations;
+		internal readonly ETradingPreferences TradingPreferences = ETradingPreferences.None;
 
 		[JsonProperty]
 		internal string SteamLogin { get; set; }
@@ -193,7 +193,8 @@ namespace ArchiSteamFarm {
 			None = 0,
 			AcceptDonations = 1,
 			SteamTradeMatcher = 2,
-			MatchEverything = 4
+			MatchEverything = 4,
+			DontAcceptBotTrades = 8
 		}
 	}
 }

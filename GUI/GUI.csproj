@@ -52,6 +52,18 @@
       <HintPath>..\packages\Newtonsoft.Json.9.0.2-beta2\lib\net45\Newtonsoft.Json.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Nito.AsyncEx, Version=4.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nito.AsyncEx.4.0.1\lib\net45\Nito.AsyncEx.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Nito.AsyncEx.Concurrent, Version=4.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nito.AsyncEx.4.0.1\lib\net45\Nito.AsyncEx.Concurrent.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Nito.AsyncEx.Enlightenment, Version=4.0.1.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nito.AsyncEx.4.0.1\lib\net45\Nito.AsyncEx.Enlightenment.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
     <Reference Include="NLog, Version=5.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
       <HintPath>..\packages\NLog.5.0.0-beta05-test\lib\net45\NLog.dll</HintPath>
       <Private>True</Private>
@@ -71,6 +83,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.IO.Compression" />
+    <Reference Include="System.Net" />
     <Reference Include="System.Security" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Drawing" />
@@ -147,6 +160,9 @@
     </Compile>
     <Compile Include="..\ArchiSteamFarm\MobileAuthenticator.cs">
       <Link>MobileAuthenticator.cs</Link>
+    </Compile>
+    <Compile Include="..\ArchiSteamFarm\OS.cs">
+      <Link>OS.cs</Link>
     </Compile>
     <Compile Include="..\ArchiSteamFarm\Runtime.cs">
       <Link>Runtime.cs</Link>
@@ -251,6 +267,9 @@
     <EmbeddedResource Include="..\ArchiSteamFarm\Localization\Strings.mk-MK.resx">
       <Link>Localization\Strings.mk-MK.resx</Link>
     </EmbeddedResource>
+    <EmbeddedResource Include="..\ArchiSteamFarm\Localization\Strings.nl-BE.resx">
+      <Link>Localization\Strings.nl-BE.resx</Link>
+    </EmbeddedResource>
     <EmbeddedResource Include="..\ArchiSteamFarm\Localization\Strings.nl-NL.resx">
       <Link>Localization\Strings.nl-NL.resx</Link>
     </EmbeddedResource>
@@ -349,11 +368,17 @@
       copy "$(TargetDir)$(TargetName).exe" "$(SolutionDir)out\ASF-GUI.exe"
     </PostBuildEvent>
     <PostBuildEvent Condition=" '$(OS)' == 'Unix' AND '$(ConfigurationName)' == 'Release' ">
+      set -e
       if [ -f "$(SolutionDir)mono_envsetup.sh" ]; then
         . "$(SolutionDir)mono_envsetup.sh"
       fi
 
-      mono "$(SolutionDir)tools/ILRepack/ILRepack.exe" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-GUI.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
+      if [ -n "$MONO_FACADES" ]; then
+        mono "$(SolutionDir)tools/ILRepack/ILRepack.exe" "/lib:$MONO_FACADES" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-GUI.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
+      else
+        mono "$(SolutionDir)tools/ILRepack/ILRepack.exe" /ndebug /internalize /parallel /targetplatform:v4 /wildcards /out:"$(SolutionDir)out/ASF-GUI.exe" "$(TargetDir)$(TargetName).exe" "$(TargetDir)*.dll"
+      fi
+
       rm "$(SolutionDir)out/ASF-GUI.exe.config"
     </PostBuildEvent>
   </PropertyGroup>
@@ -364,10 +389,12 @@
     <Error Condition="!Exists('..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets'))" />
     <Error Condition="!Exists('..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets'))" />
     <Error Condition="!Exists('..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets'))" />
+    <Error Condition="!Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets'))" />
   </Target>
   <Import Project="..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Fody.1.30.0-beta01\build\dotnet\Fody.targets')" />
   <Import Project="..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Costura.Fody.2.0.0-beta0018\build\Costura.Fody.targets')" />
   <Import Project="..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets" Condition="'$(OS)' != 'Unix' AND '$(ConfigurationName)' == 'Release' AND Exists('..\packages\Resource.Embedder.1.2.2\build\Resource.Embedder.targets')" />
+  <Import Project="..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets" Condition="Exists('..\packages\Microsoft.Bcl.Build.1.0.21\build\Microsoft.Bcl.Build.targets')" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">

@@ -38,10 +38,6 @@ namespace ArchiSteamFarm {
 		internal const byte DefaultConnectionTimeout = 60;
 		internal const ushort DefaultWCFPort = 1242;
 
-		private const byte DefaultFarmingDelay = 15;
-		private const byte DefaultMaxFarmingTime = 10;
-		private const ProtocolType DefaultSteamProtocol = ProtocolType.Tcp;
-
 		// This is hardcoded blacklist which should not be possible to change
 		internal static readonly HashSet<uint> GlobalBlacklist = new HashSet<uint> { 267420, 303700, 335590, 368020, 425280, 480730, 566020 };
 
@@ -64,7 +60,7 @@ namespace ArchiSteamFarm {
 		internal readonly bool Debug = false;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly byte FarmingDelay = DefaultFarmingDelay;
+		internal readonly byte FarmingDelay = 15;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte GiftsLimiterDelay = 1;
@@ -82,7 +78,7 @@ namespace ArchiSteamFarm {
 		internal readonly byte LoginLimiterDelay = 10;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly byte MaxFarmingTime = DefaultMaxFarmingTime;
+		internal readonly byte MaxFarmingTime = 10;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte MaxTradeHoldDuration = 15;
@@ -97,10 +93,13 @@ namespace ArchiSteamFarm {
 		internal readonly ulong SteamOwnerID = 0;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly ProtocolType SteamProtocol = DefaultSteamProtocol;
+		internal readonly ProtocolType SteamProtocol = ProtocolType.Tcp;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly EUpdateChannel UpdateChannel = EUpdateChannel.Stable;
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		internal readonly EWCFBinding WCFBinding = EWCFBinding.NetTcp;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly ushort WCFPort = DefaultWCFPort;
@@ -181,6 +180,12 @@ namespace ArchiSteamFarm {
 			None,
 			Stable,
 			Experimental
+		}
+
+		internal enum EWCFBinding : byte {
+			NetTcp,
+			BasicHttp,
+			WSHttp
 		}
 	}
 }
