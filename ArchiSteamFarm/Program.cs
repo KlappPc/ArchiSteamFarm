@@ -76,29 +76,29 @@ namespace ArchiSteamFarm {
 				Logging.OnUserInputStart();
 				switch (userInputType) {
 					case ASF.EUserInputType.DeviceID:
-						Console.Write(Strings.UserInputDeviceID, botName);
+						Console.Write(Bot.FormatBotResponse(Strings.UserInputDeviceID, botName));
 						break;
 					case ASF.EUserInputType.Login:
-						Console.Write(Strings.UserInputSteamLogin, botName);
+						Console.Write(Bot.FormatBotResponse(Strings.UserInputSteamLogin, botName));
 						break;
 					case ASF.EUserInputType.Password:
-						Console.Write(Strings.UserInputSteamPassword, botName);
+						Console.Write(Bot.FormatBotResponse(Strings.UserInputSteamPassword, botName));
 						break;
 					case ASF.EUserInputType.SteamGuard:
-						Console.Write(Strings.UserInputSteamGuard, botName);
+						Console.Write(Bot.FormatBotResponse(Strings.UserInputSteamGuard, botName));
 						break;
 					case ASF.EUserInputType.SteamParentalPIN:
-						Console.Write(Strings.UserInputSteamParentalPIN, botName);
+						Console.Write(Bot.FormatBotResponse(Strings.UserInputSteamParentalPIN, botName));
 						break;
 					case ASF.EUserInputType.TwoFactorAuthentication:
-						Console.Write(Strings.UserInputSteam2FA, botName);
+						Console.Write(Bot.FormatBotResponse(Strings.UserInputSteam2FA, botName));
 						break;
 					case ASF.EUserInputType.WCFHostname:
-						Console.Write(Strings.UserInputWCFHost, botName);
+						Console.Write(Bot.FormatBotResponse(Strings.UserInputWCFHost, botName));
 						break;
 					default:
 						ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(userInputType), userInputType));
-						Console.Write(Strings.UserInputUnknown, botName, userInputType);
+						Console.Write(Bot.FormatBotResponse(string.Format(Strings.UserInputUnknown, userInputType), botName));
 						break;
 				}
 
@@ -181,7 +181,7 @@ namespace ArchiSteamFarm {
 
 			await ASF.CheckForUpdate().ConfigureAwait(false);
 			await ASF.InitBots().ConfigureAwait(false);
-			ASF.InitFileWatcher();
+			ASF.InitEvents();
 		}
 
 		private static void InitCore(string[] args) {
@@ -252,8 +252,18 @@ namespace ArchiSteamFarm {
 			}
 
 			if (currentResourceSetCount < defaultResourceSetCount) {
-				float translationCompleteness = currentResourceSetCount / (float) defaultResourceSetCount;
-				ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.TranslationIncomplete, CultureInfo.CurrentCulture.Name, translationCompleteness.ToString("P1")));
+				// We don't want to report "en-AU" as 0.00% only because we don't have it as a dialect, if "en" is available and translated
+				// This typically will work only for English, as e.g. "nl-BE" doesn't fallback to "nl-NL", but "nl", and "nl" will be empty
+				ushort neutralResourceSetCount = 0;
+				ResourceSet neutralResourceSet = Strings.ResourceManager.GetResourceSet(CultureInfo.CurrentCulture.Parent, true, false);
+				if (neutralResourceSet != null) {
+					neutralResourceSetCount = (ushort) neutralResourceSet.Cast<object>().Count();
+				}
+
+				if (neutralResourceSetCount < defaultResourceSetCount) {
+					float translationCompleteness = currentResourceSetCount / (float) defaultResourceSetCount;
+					ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.TranslationIncomplete, CultureInfo.CurrentCulture.Name, translationCompleteness.ToString("P1")));
+				}
 			}
 		}
 

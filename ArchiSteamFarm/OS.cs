@@ -25,6 +25,7 @@
 using System;
 using System.Runtime.InteropServices;
 using ArchiSteamFarm.Localization;
+using Microsoft.Win32;
 
 namespace ArchiSteamFarm {
 	internal static class OS {
@@ -36,8 +37,28 @@ namespace ArchiSteamFarm {
 				case PlatformID.Win32S:
 				case PlatformID.Win32Windows:
 				case PlatformID.WinCE:
+					DisableQuickEditMode();
 					KeepWindowsSystemActive();
 					break;
+			}
+
+			SystemEvents.TimeChanged += OnTimeChanged;
+		}
+
+		private static void DisableQuickEditMode() {
+			// http://stackoverflow.com/questions/30418886/how-and-why-does-quickedit-mode-in-command-prompt-freeze-applications
+			IntPtr consoleHandle = NativeMethods.GetStdHandle(NativeMethods.StandardInputHandle);
+
+			uint consoleMode;
+			if (!NativeMethods.GetConsoleMode(consoleHandle, out consoleMode)) {
+				ASF.ArchiLogger.LogGenericError(Strings.WarningFailed);
+				return;
+			}
+
+			consoleMode &= ~NativeMethods.EnableQuickEditMode;
+
+			if (!NativeMethods.SetConsoleMode(consoleHandle, consoleMode)) {
+				ASF.ArchiLogger.LogGenericError(Strings.WarningFailed);
 			}
 		}
 
@@ -45,25 +66,41 @@ namespace ArchiSteamFarm {
 			// This function calls unmanaged API in order to tell Windows OS that it should not enter sleep state while the program is running
 			// If user wishes to enter sleep mode, then he should use ShutdownOnFarmingFinished or manage ASF process with third-party tool or script
 			// More info: https://msdn.microsoft.com/library/windows/desktop/aa373208(v=vs.85).aspx
-			EExecutionState result = SetThreadExecutionState(EExecutionState.Continuous | EExecutionState.AwayModeRequired | EExecutionState.SystemRequired);
+			NativeMethods.EExecutionState result = NativeMethods.SetThreadExecutionState(NativeMethods.EExecutionState.AwayModeRequired | NativeMethods.EExecutionState.Continuous | NativeMethods.EExecutionState.SystemRequired);
 
 			// SetThreadExecutionState() returns NULL on failure, which is mapped to 0 (EExecutionState.Error) in our case
-			if (result == EExecutionState.Error) {
+			if (result == NativeMethods.EExecutionState.Error) {
 				ASF.ArchiLogger.LogGenericError(string.Format(Strings.WarningFailedWithError, result));
 			}
 		}
 
-		[DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-		private static extern EExecutionState SetThreadExecutionState(EExecutionState executionState);
+		private static async void OnTimeChanged(object sender, EventArgs e) => await MobileAuthenticator.OnTimeChanged().ConfigureAwait(false);
 
-		[Flags]
-		private enum EExecutionState : uint {
-			Error = 0,
-			SystemRequired = 0x00000001,
-//			DisplayRequired = 0x00000002,
-//			UserPresent = 0x00000004,
-			AwayModeRequired = 0x00000040,
-			Continuous = 0x80000000
+		private static class NativeMethods {
+			internal const uint EnableQuickEditMode = 0x0040;
+			internal const int StandardInputHandle = -10;
+
+			[DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+			internal static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+
+			[DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+			internal static extern IntPtr GetStdHandle(int nStdHandle);
+
+			[DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+			internal static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+
+			[DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+			internal static extern EExecutionState SetThreadExecutionState(EExecutionState executionState);
+
+			[Flags]
+			internal enum EExecutionState : uint {
+				Error = 0,
+				SystemRequired = 0x00000001,
+				//DisplayRequired = 0x00000002,
+				//UserPresent = 0x00000004,
+				AwayModeRequired = 0x00000040,
+				Continuous = 0x80000000
+			}
 		}
 	}
 }

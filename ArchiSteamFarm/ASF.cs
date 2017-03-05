@@ -227,7 +227,7 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal static void InitFileWatcher() {
+		internal static void InitEvents() {
 			if (FileSystemWatcher != null) {
 				return;
 			}

@@ -184,18 +184,27 @@ namespace ArchiSteamFarm {
 
 			// Check if it's donation trade
 			if (tradeOffer.ItemsToGive.Count == 0) {
-				ParseTradeResult.EResult donationResult;
-
 				// If it's steam fuckup, temporarily ignore it, otherwise react accordingly, depending on our preference
 				if (tradeOffer.ItemsToReceive.Count == 0) {
-					donationResult = ParseTradeResult.EResult.RejectedTemporarily;
-				} else if (Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.AcceptDonations) || (!Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.DontAcceptBotTrades) && (tradeOffer.OtherSteamID64 != 0) && Bot.Bots.Values.Any(bot => bot.SteamID == tradeOffer.OtherSteamID64))) {
-					donationResult = ParseTradeResult.EResult.AcceptedWithoutItemLose;
-				} else {
-					donationResult = ParseTradeResult.EResult.RejectedPermanently;
+					return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.RejectedTemporarily);
 				}
 
-				return new ParseTradeResult(tradeOffer.TradeOfferID, donationResult);
+				bool acceptDonations = Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.AcceptDonations);
+				bool acceptBotTrades = !Bot.BotConfig.TradingPreferences.HasFlag(BotConfig.ETradingPreferences.DontAcceptBotTrades);
+
+				// If we accept donations and bot trades, accept it right away
+				if (acceptDonations && acceptBotTrades) {
+					return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.AcceptedWithoutItemLose);
+				}
+
+				// If we don't accept donations, neither bot trades, deny it right away
+				if (!acceptDonations && !acceptBotTrades) {
+					return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.RejectedPermanently);
+				}
+
+				// Otherwise we either accept donations but not bot trades, or we accept bot trades but not donations
+				bool isBotTrade = (tradeOffer.OtherSteamID64 != 0) && Bot.Bots.Values.Any(bot => bot.SteamID == tradeOffer.OtherSteamID64);
+				return new ParseTradeResult(tradeOffer.TradeOfferID, (acceptDonations && !isBotTrade) || (acceptBotTrades && isBotTrade) ? ParseTradeResult.EResult.AcceptedWithoutItemLose : ParseTradeResult.EResult.RejectedPermanently);
 			}
 
 			// If we don't have SteamTradeMatcher enabled, this is the end for us
@@ -240,7 +249,9 @@ namespace ArchiSteamFarm {
 
 			HashSet<Steam.Item> inventory = await Bot.ArchiWebHandler.GetMySteamInventory(false, new HashSet<Steam.Item.EType> { Steam.Item.EType.TradingCard }).ConfigureAwait(false);
 			if ((inventory == null) || (inventory.Count == 0)) {
-				return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.AcceptedWithItemLose); // OK, assume that this trade is valid, we can't check our EQ
+				// If we can't check our inventory when not using MatchEverything, this is a temporary failure
+				Bot.ArchiLogger.LogGenericWarning(string.Join(Strings.ErrorIsEmpty, nameof(inventory)));
+				return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.RejectedTemporarily);
 			}
 
 			// Get appIDs we're interested in
@@ -249,9 +260,10 @@ namespace ArchiSteamFarm {
 			// Now remove from our inventory all items we're NOT interested in
 			inventory.RemoveWhere(item => !appIDs.Contains(item.RealAppID));
 
-			// If for some reason Valve is talking crap and we can't find mentioned items, assume OK
+			// If for some reason Valve is talking crap and we can't find mentioned items, this is a temporary failure
 			if (inventory.Count == 0) {
-				return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.AcceptedWithItemLose);
+				Bot.ArchiLogger.LogGenericWarning(string.Join(Strings.ErrorIsEmpty, nameof(inventory)));
+				return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.RejectedTemporarily);
 			}
 
 			// Now let's create a map which maps items to their amount in our EQ

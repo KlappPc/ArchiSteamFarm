@@ -156,7 +156,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			if (Bot.IsLimitedUser) {
+			if (!Bot.CanReceiveSteamCards) {
 				await Bot.OnFarmingFinished(false).ConfigureAwait(false);
 				return;
 			}
@@ -185,6 +185,15 @@ namespace ArchiSteamFarm {
 				if (!Bot.IsPlayingPossible) {
 					Bot.ArchiLogger.LogGenericInfo(Strings.PlayingNotAvailable);
 					return;
+				}
+
+				if (Bot.PlayingWasBlocked) {
+					await Task.Delay(Bot.MinPlayingBlockedTTL * 1000).ConfigureAwait(false);
+
+					if (!Bot.IsPlayingPossible) {
+						Bot.ArchiLogger.LogGenericInfo(Strings.PlayingNotAvailable);
+						return;
+					}
 				}
 
 				KeepFarming = NowFarming = true;
@@ -619,10 +628,14 @@ namespace ArchiSteamFarm {
 			}
 
 			bool success = true;
-			bool? isReleased = await Bot.IsReleased(game.AppID).ConfigureAwait(false);
 
-			if (isReleased.GetValueOrDefault(true)) {
-				Bot.ArchiHandler.PlayGame(game.AppID, Bot.BotConfig.CustomGamePlayedWhileFarming);
+			uint appID = await Bot.GetAppIDForIdling(game.AppID).ConfigureAwait(false);
+			if (appID != 0) {
+				if (appID != game.AppID) {
+					Bot.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningIdlingGameMismatch, game.AppID, game.GameName, appID));
+				}
+
+				Bot.PlayGame(appID, Bot.BotConfig.CustomGamePlayedWhileFarming);
 				DateTime endFarmingDate = DateTime.UtcNow.AddHours(Program.GlobalConfig.MaxFarmingTime);
 
 				bool? keepFarming = await ShouldFarm(game).ConfigureAwait(false);
@@ -646,7 +659,7 @@ namespace ArchiSteamFarm {
 				}
 			} else {
 				IgnoredAppIDs[game.AppID] = DateTime.UtcNow;
-				Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.IdlingGameNotReleasedYet, game.AppID, game.GameName));
+				Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.IdlingGameNotPossible, game.AppID, game.GameName));
 			}
 
 			Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.StoppedIdling, game.AppID, game.GameName));
@@ -670,7 +683,7 @@ namespace ArchiSteamFarm {
 				return true;
 			}
 
-			Bot.ArchiHandler.PlayGames(games.Select(game => game.AppID), Bot.BotConfig.CustomGamePlayedWhileFarming);
+			Bot.PlayGames(games.Select(game => game.AppID), Bot.BotConfig.CustomGamePlayedWhileFarming);
 
 			bool success = true;
 			while (maxHour < 2) {
