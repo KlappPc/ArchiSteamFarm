@@ -183,7 +183,7 @@ namespace ArchiSteamFarm {
 				string description = descriptionNode.InnerText;
 				if (description.StartsWith("Sell - ", StringComparison.Ordinal)) {
 					type = Steam.ConfirmationDetails.EType.Market;
-				} else if (description.StartsWith("Trade with ", StringComparison.Ordinal)) {
+				} else if (description.StartsWith("Trade with ", StringComparison.Ordinal) || description.Equals("Error loading trade details")) {
 					type = Steam.ConfirmationDetails.EType.Trade;
 				} else {
 					Bot.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(description), description));
@@ -366,7 +366,7 @@ namespace ArchiSteamFarm {
 					return (uint) (Utilities.GetUnixTime() + SteamTimeDifference.Value);
 				}
 
-				uint serverTime = Bot.ArchiWebHandler.GetServerTime();
+				uint serverTime = await Bot.ArchiWebHandler.GetServerTime().ConfigureAwait(false);
 				if (serverTime == 0) {
 					return Utilities.GetUnixTime();
 				}

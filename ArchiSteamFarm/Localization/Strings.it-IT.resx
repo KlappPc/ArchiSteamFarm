@@ -546,10 +546,7 @@
   <data name="BotLootingFailed" xml:space="preserve">
     <value>Offerta di scambio fallita!</value>
   </data>
-  <data name="BotLootingMasterNotDefined" xml:space="preserve">
-    <value>Impossibile inviare l'offerta di scambio perché SteamMasterID non è definito!</value>
-    <comment>SteamMasterID is name of bot config property, it should not be translated</comment>
-  </data>
+  
   <data name="BotLootingNoLootableTypes" xml:space="preserve">
     <value>Non hai configurato il tipo di oggetti per il loot!</value>
   </data>
@@ -606,9 +603,7 @@
   <data name="BotStatusLimited" xml:space="preserve">
     <value>Il Bot è un account limitato e non può ottenere carte tramite idling.</value>
   </data>
-  <data name="BotStatusNotConnected" xml:space="preserve">
-    <value>Bot non è connesso.</value>
-  </data>
+  
   <data name="BotStatusNotRunning" xml:space="preserve">
     <value>Bot non è in esecuzione.</value>
   </data>
@@ -712,4 +707,5 @@
     <value>Già posseduto: {0}</value>
     <comment>{0} will be replaced by game's ID (number), {1} will be replaced by game's name</comment>
   </data>
+  
 </root>

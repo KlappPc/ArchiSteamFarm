@@ -30,6 +30,7 @@ using System.Drawing.Design;
 using System.IO;
 using ConfigGenerator.JSON;
 using Newtonsoft.Json;
+using Wexman.Design;
 
 namespace ConfigGenerator {
 	[SuppressMessage("ReSharper", "AutoPropertyCanBeMadeGetOnly.Global")]
@@ -113,10 +114,6 @@ namespace ConfigGenerator {
 		public ulong SteamMasterClanID { get; set; } = 0;
 
 		[LocalizedCategory("Access")]
-		[JsonProperty(Required = Required.DisallowNull)]
-		public ulong SteamMasterID { get; set; } = 0;
-
-		[LocalizedCategory("Access")]
 		[JsonProperty]
 		public string SteamParentalPIN { get; set; } = "0";
 
@@ -128,6 +125,11 @@ namespace ConfigGenerator {
 		[LocalizedCategory("Access")]
 		[JsonProperty]
 		public string SteamTradeToken { get; set; } = null;
+
+		[LocalizedCategory("Access")]
+		[Editor(typeof(GenericDictionaryEditor<ulong, EPermission>), typeof(UITypeEditor))]
+		[JsonProperty(Required = Required.DisallowNull)]
+		public Dictionary<ulong, EPermission> SteamUserPermissions { get; set; } = new Dictionary<ulong, EPermission>();
 
 		[LocalizedCategory("Advanced")]
 		[Editor(typeof(FlagEnumUiEditor), typeof(UITypeEditor))]
@@ -189,6 +191,13 @@ namespace ConfigGenerator {
 			HoursDescending,
 			NamesAscending,
 			NamesDescending
+		}
+
+		internal enum EPermission : byte {
+			None,
+			FamilySharing,
+			Operator,
+			Master
 		}
 
 		[Flags]

@@ -178,7 +178,7 @@ namespace ArchiSteamFarm {
 			}
 
 			// Always accept trades from SteamMasterID
-			if ((tradeOffer.OtherSteamID64 != 0) && ((tradeOffer.OtherSteamID64 == Bot.BotConfig.SteamMasterID) || (tradeOffer.OtherSteamID64 == Program.GlobalConfig.SteamOwnerID))) {
+			if ((tradeOffer.OtherSteamID64 != 0) && Bot.IsMaster(tradeOffer.OtherSteamID64)) {
 				return new ParseTradeResult(tradeOffer.TradeOfferID, tradeOffer.ItemsToGive.Count > 0 ? ParseTradeResult.EResult.AcceptedWithItemLose : ParseTradeResult.EResult.AcceptedWithoutItemLose);
 			}
 
@@ -250,7 +250,7 @@ namespace ArchiSteamFarm {
 			HashSet<Steam.Item> inventory = await Bot.ArchiWebHandler.GetMySteamInventory(false, new HashSet<Steam.Item.EType> { Steam.Item.EType.TradingCard }).ConfigureAwait(false);
 			if ((inventory == null) || (inventory.Count == 0)) {
 				// If we can't check our inventory when not using MatchEverything, this is a temporary failure
-				Bot.ArchiLogger.LogGenericWarning(string.Join(Strings.ErrorIsEmpty, nameof(inventory)));
+				Bot.ArchiLogger.LogGenericWarning(string.Format(Strings.ErrorIsEmpty, nameof(inventory)));
 				return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.RejectedTemporarily);
 			}
 
@@ -262,7 +262,7 @@ namespace ArchiSteamFarm {
 
 			// If for some reason Valve is talking crap and we can't find mentioned items, this is a temporary failure
 			if (inventory.Count == 0) {
-				Bot.ArchiLogger.LogGenericWarning(string.Join(Strings.ErrorIsEmpty, nameof(inventory)));
+				Bot.ArchiLogger.LogGenericWarning(string.Format(Strings.ErrorIsEmpty, nameof(inventory)));
 				return new ParseTradeResult(tradeOffer.TradeOfferID, ParseTradeResult.EResult.RejectedTemporarily);
 			}
 
