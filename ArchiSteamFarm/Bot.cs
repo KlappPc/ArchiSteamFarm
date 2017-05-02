@@ -2566,7 +2566,6 @@ namespace ArchiSteamFarm {
                 return "You can't transfere to yourself!";
             }
 
-            await Trading.LimitInventoryRequestsAsync().ConfigureAwait(false);
             HashSet<Steam.Item.EType> tmp = new HashSet<Steam.Item.EType>();
             tmp.Add(Steam.Item.EType.Unknown);
             tmp.Add(Steam.Item.EType.BoosterPack);
