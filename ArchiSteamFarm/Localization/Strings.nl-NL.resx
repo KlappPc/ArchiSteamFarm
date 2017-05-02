@@ -122,8 +122,8 @@
     <comment>{0} will be replaced by trade number</comment>
   </data>
   <data name="AutoUpdateCheckInfo" xml:space="preserve">
-    <value>ASF controleert automatisch iedere {0} uur voor een nieuwe versie.</value>
-    <comment>{0} will be replaced by number of hours</comment>
+    <value>ASF controleert automatisch iedere {0} voor een nieuwe versie.</value>
+    <comment>{0} will be replaced by translated TimeSpan string (such as "24 hours")</comment>
   </data>
   <data name="Content" xml:space="preserve">
     <value>Inhoud: {0}</value>
@@ -184,7 +184,7 @@ StackTrace:
     <value>Laatste versie kon niet worden gecontroleerd!</value>
   </data>
   <data name="ErrorUpdateNoAssetForThisBinary" xml:space="preserve">
-    <value>Kon niet verdergaan met updaten, omdat er geen bestand verwijst naar de momenteel draaiende versie! Zorg ervoor dat je ASF-bestand de correcte naam heeft!</value>
+    <value>Kon niet verdergaan met updaten, omdat er geen bestand gerelateerd is aan de reeds werkende versie! Zorg ervoor dat je ASF-bestand de correcte naam heeft!</value>
   </data>
   <data name="ErrorUpdateNoAssets" xml:space="preserve">
     <value>Kon niet verdergaan met updaten, omdat deze updateversie geen bestanden bevat!</value>
@@ -253,34 +253,6 @@ StackTrace:
   </data>
   <data name="Success" xml:space="preserve">
     <value>Succesvol!</value>
-  </data>
-  <data name="TimeSpanDay" xml:space="preserve">
-    <value>1 dag</value>
-  </data>
-  <data name="TimeSpanDays" xml:space="preserve">
-    <value>{0} dagen</value>
-    <comment>{0} will be replaced by number of days</comment>
-  </data>
-  <data name="TimeSpanHour" xml:space="preserve">
-    <value>1 uur</value>
-  </data>
-  <data name="TimeSpanHours" xml:space="preserve">
-    <value>{0} uur</value>
-    <comment>{0} will be replaced by number of hours</comment>
-  </data>
-  <data name="TimeSpanMinute" xml:space="preserve">
-    <value>1 minuut</value>
-  </data>
-  <data name="TimeSpanMinutes" xml:space="preserve">
-    <value>{0} minuten</value>
-    <comment>{0} will be replaced by number of minutes</comment>
-  </data>
-  <data name="TimeSpanSecond" xml:space="preserve">
-    <value>1 seconde</value>
-  </data>
-  <data name="TimeSpanSeconds" xml:space="preserve">
-    <value>{0} seconden</value>
-    <comment>{0} will be replaced by number of seconds</comment>
   </data>
   <data name="UnlockingParentalAccount" xml:space="preserve">
     <value>Ouderlijk toezicht wordt ontgrendeld...</value>
@@ -376,16 +348,16 @@ StackTrace:
     <comment>{0} will be replaced by bot's name query (string)</comment>
   </data>
   <data name="BotStatusOverview" xml:space="preserve">
-    <value>Er zijn {0}/{1} bots actief, met een totaal van {2} spel(len) te spelen en {3} kaart(en) resterend om te verzamelen.</value>
+    <value>Er zijn {0}/{1} bots actief, met een totaal van nog {2} spel(len) te spelen en {3} kaart(en) resterend om te verzamelen.</value>
     <comment>{0} will be replaced by number of active bots, {1} will be replaced by total number of bots, {2} will be replaced by total number of games left to idle, {3} will be replaced by total number of cards left to idle</comment>
   </data>
   <data name="BotStatusIdling" xml:space="preserve">
     <value>Bot speelt: {0} ({1}, {2} kaart(en) resterend). Totaal nog {3} spel(len) te spelen en {4} kaart(en) resterend om te verzamelen (~{5} resterend).</value>
-    <comment>{0} will be replaced by game's ID (number), {1} will be replaced by game's name, {2} will be replaced by number of cards left to idle, {3} will be replaced by total number of games to idle, {4} will be replaced by total number of cards to idle, {5} will be replaced by translated TimeSpan string built from TimeSpan* translation parts</comment>
+    <comment>{0} will be replaced by game's ID (number), {1} will be replaced by game's name, {2} will be replaced by number of cards left to idle, {3} will be replaced by total number of games to idle, {4} will be replaced by total number of cards to idle, {5} will be replaced by translated TimeSpan string (such as "1 day, 5 hours and 30 minutes")</comment>
   </data>
   <data name="BotStatusIdlingList" xml:space="preserve">
     <value>Bot speelt de spellen: {0}. Totaal nog {1} spel(len) te spelen en {2} kaart(en) resterend om te verzamelen (~{3} resterend).</value>
-    <comment>{0} will be replaced by list of the games (IDs, numbers), {1} will be replaced by total number of games to idle, {2} will be replaced by total number of cards to idle, {3} will be replaced by translated TimeSpan string built from TimeSpan* translation parts</comment>
+    <comment>{0} will be replaced by list of the games (IDs, numbers), {1} will be replaced by total number of games to idle, {2} will be replaced by total number of cards to idle, {3} will be replaced by translated TimeSpan string (such as "1 day, 5 hours and 30 minutes")</comment>
   </data>
   <data name="CheckingFirstBadgePage" xml:space="preserve">
     <value>Eerste badge pagina controleren...</value>
@@ -401,15 +373,15 @@ StackTrace:
     <value>Gereed!</value>
   </data>
   <data name="GamesToIdle" xml:space="preserve">
-    <value>We hebben een totaal van {0} spel(len) en nog {1} kaart(en) te verzamelen (~{2} resterend)...</value>
-    <comment>{0} will be replaced by number of games, {1} will be replaced by number of cards, {2} will be replaced by translated TimeSpan string built from TimeSpan* translation parts</comment>
+    <value>We hebben een totaal van nog {0} spel(len) te spelen en {1} kaart(en) resterend om te verzamelen (~{2} resterend)...</value>
+    <comment>{0} will be replaced by number of games, {1} will be replaced by number of cards, {2} will be replaced by translated TimeSpan string (such as "1 day, 5 hours and 30 minutes")</comment>
   </data>
   <data name="IdlingFinished" xml:space="preserve">
     <value>Farmen is gereed!</value>
   </data>
   <data name="IdlingFinishedForGame" xml:space="preserve">
     <value>Farmen is gereed: {0} ({1}) na {2} speeltijd!</value>
-    <comment>{0} will be replaced by game's ID (number), {1} will be replaced by game's name, {2} will be replaced by translated TimeSpan string built from TimeSpan* translation parts</comment>
+    <comment>{0} will be replaced by game's ID (number), {1} will be replaced by game's name, {2} will be replaced by translated TimeSpan string (such as "1 day, 5 hours and 30 minutes")</comment>
   </data>
   <data name="IdlingFinishedForGames" xml:space="preserve">
     <value>Farmen is gereed voor de spellen: {0}</value>
@@ -477,7 +449,7 @@ StackTrace:
     <comment>{0} will be replaced by game's ID (number), {1} will be replaced by status string</comment>
   </data>
   <data name="BotAddLicenseWithItems" xml:space="preserve">
-    <value>ID: {0} | Status: {1} | Items: {2}</value>
+    <value>ID: {0} | Status: {1} | Geactiveerde ID: {2}</value>
     <comment>{0} will be replaced by game's ID (number), {1} will be replaced by status string, {2} will be replaced by list of granted IDs (numbers), separated by a comma</comment>
   </data>
   <data name="BotAlreadyRunning" xml:space="preserve">
@@ -506,8 +478,8 @@ StackTrace:
     <value>Automatisch farmen is al gepauzeerd!</value>
   </data>
   <data name="BotAutomaticIdlingPausedWithCountdown" xml:space="preserve">
-    <value>Automatisch farmen is nu gepauzeerd! Je hebt {0} minuten om een spel te starten.</value>
-    <comment>{0} will be replaced by number of minutes</comment>
+    <value>Automatisch farmen is nu gepauzeerd! Je hebt {0} om een spel te starten.</value>
+    <comment>{0} will be replaced by translated TimeSpan string (such as "5 minutes")</comment>
   </data>
   <data name="BotAutomaticIdlingResumedAlready" xml:space="preserve">
     <value>Automatisch farmen is al hervat!</value>
@@ -529,7 +501,7 @@ StackTrace:
     <value>Deze bot wordt niet gestart omdat hij uitgeschakeld is in het configuratiebestand!</value>
   </data>
   <data name="BotInvalidAuthenticatorDuringLogin" xml:space="preserve">
-    <value>TwoFactorCodeMisMatch foutmelding {0} keer ontvangen. Dit betekent meestal de verkeerde ASF 2FA login informatie, afbreken!</value>
+    <value>TwoFactorCodeMisMatch foutmelding {0} keer op rij ontvangen. Dit betekent meestal de verkeerde ASF 2FA login informatie. Proces wordt afgebroken!</value>
     <comment>{0} will be replaced by maximum allowed number of failed 2FA attempts</comment>
   </data>
   <data name="BotLoggedOff" xml:space="preserve">
@@ -543,7 +515,7 @@ StackTrace:
     <value>Inloggen...</value>
   </data>
   <data name="BotLogonSessionReplaced" xml:space="preserve">
-    <value>Dit account wordt waarschijnlijk al gebruikt door een andere ASF-instantie, wat wordt gezien als ongedefinieerd gedrag. Weigeren om het voort te zetten!</value>
+    <value>Dit account wordt waarschijnlijk al gebruikt door een andere ASF-instantie, wat wordt gezien als ongedefinieerd gedrag. Weigeren om het proces voort te zetten!</value>
   </data>
   <data name="BotLootingFailed" xml:space="preserve">
     <value>Ruilaanbod mislukt!</value>
@@ -584,8 +556,8 @@ StackTrace:
     <comment>{0} will be replaced by game's ID (number), {1} will be replaced by game's name</comment>
   </data>
   <data name="BotRateLimitExceeded" xml:space="preserve">
-    <value>Aanvraaglimiet overschreden; we zullen het over {0} minuten opnieuw proberen...</value>
-    <comment>{0} will be replaced by number of minutes</comment>
+    <value>Aanvraaglimiet overschreden; we zullen het over {0} opnieuw proberen...</value>
+    <comment>{0} will be replaced by translated TimeSpan string (such as "25 minutes")</comment>
   </data>
   <data name="BotReconnecting" xml:space="preserve">
     <value>Opnieuw verbinden...</value>
@@ -715,5 +687,8 @@ StackTrace:
   </data>
   <data name="ErrorAccessDenied" xml:space="preserve">
     <value>Toegang geweigerd!</value>
+  </data>
+  <data name="WarningPreReleaseVersion" xml:space="preserve">
+    <value>Je gebruikt een nieuwere versie dan de laatste versie van je update kanaal. Hou er rekening mee dat pre-release versies alleen geschikt zijn voor gebruikers die weten hoe ze bugs moeten rapporteren, kunnen omgaan met problemen en feedback kunnen geven. Er wordt geen technische ondersteuning geboden.</value>
   </data>
 </root>

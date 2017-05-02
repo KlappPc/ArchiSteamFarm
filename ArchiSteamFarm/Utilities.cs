@@ -29,8 +29,7 @@ using System.Globalization;
 using System.Linq;
 using System.Net;
 using System.Runtime.CompilerServices;
-using System.Text;
-using ArchiSteamFarm.Localization;
+using Humanizer;
 
 namespace ArchiSteamFarm {
 	internal static class Utilities {
@@ -39,6 +38,15 @@ namespace ArchiSteamFarm {
 		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[SuppressMessage("ReSharper", "UnusedParameter.Global")]
 		internal static void Forget(this object obj) { }
+
+		internal static string GetArgsAsString(this string[] args, byte argsToSkip = 1) {
+			if (args.Length >= argsToSkip) {
+				return string.Join(" ", args.GetArgs(argsToSkip));
+			}
+
+			ASF.ArchiLogger.LogNullError(nameof(args));
+			return null;
+		}
 
 		internal static string GetCookieValue(this CookieContainer cookieContainer, string url, string name) {
 			if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(name)) {
@@ -88,8 +96,7 @@ namespace ArchiSteamFarm {
 			for (byte i = 0; i < text.Length; i += split) {
 				string textPart = string.Join("", text.Skip(i).Take(split));
 
-				ulong ignored;
-				if (!ulong.TryParse(textPart, NumberStyles.HexNumber, null, out ignored)) {
+				if (!ulong.TryParse(textPart, NumberStyles.HexNumber, null, out _)) {
 					return false;
 				}
 			}
@@ -101,37 +108,23 @@ namespace ArchiSteamFarm {
 			yield return item;
 		}
 
-		internal static string ToHumanReadable(this TimeSpan timeSpan) {
-			// It's really dirty, I'd appreciate a lot if C# offered nice TimeSpan formatting by default
-			// Normally I'd use third-party library like Humanizer, but using it only for this bit is not worth it
-			// Besides, ILRepack has problem merging it's library due to referencing System.Runtime
+		internal static string ToHumanReadable(this TimeSpan timeSpan) => timeSpan.Humanize(3);
 
-			StringBuilder result = new StringBuilder();
-
-			if (timeSpan.Days > 0) {
-				result.Append((timeSpan.Days > 1 ? string.Format(Strings.TimeSpanDays, timeSpan.Days) : Strings.TimeSpanDay) + ", ");
+		private static string[] GetArgs(this string[] args, byte argsToSkip = 1) {
+			if (args.Length < argsToSkip) {
+				ASF.ArchiLogger.LogNullError(nameof(args));
+				return null;
 			}
 
-			if (timeSpan.Hours > 0) {
-				result.Append((timeSpan.Hours > 1 ? string.Format(Strings.TimeSpanHours, timeSpan.Hours) : Strings.TimeSpanHour) + ", ");
+			byte argsToCopy = (byte) (args.Length - argsToSkip);
+
+			string[] result = new string[argsToCopy];
+
+			if (argsToCopy > 0) {
+				Array.Copy(args, argsToSkip, result, 0, argsToCopy);
 			}
 
-			if (timeSpan.Minutes > 0) {
-				result.Append((timeSpan.Minutes > 1 ? string.Format(Strings.TimeSpanMinutes, timeSpan.Minutes) : Strings.TimeSpanMinute) + ", ");
-			}
-
-			if (timeSpan.Seconds > 0) {
-				result.Append((timeSpan.Seconds > 1 ? string.Format(Strings.TimeSpanSeconds, timeSpan.Seconds) : Strings.TimeSpanSecond) + ", ");
-			}
-
-			if (result.Length == 0) {
-				return string.Format(Strings.TimeSpanSeconds, 0);
-			}
-
-			// Get rid of last comma + space
-			result.Length -= 2;
-
-			return result.ToString();
+			return result;
 		}
 	}
 }

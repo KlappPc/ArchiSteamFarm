@@ -57,6 +57,7 @@ namespace ArchiSteamFarm {
 		);
 
 		private readonly Bot Bot;
+		private readonly SemaphoreSlim EventSemaphore = new SemaphoreSlim(1);
 		private readonly SemaphoreSlim FarmingSemaphore = new SemaphoreSlim(1);
 		private readonly ManualResetEventSlim FarmResetEvent = new ManualResetEventSlim(false);
 		private readonly Timer IdleFarmingTimer;
@@ -66,18 +67,15 @@ namespace ArchiSteamFarm {
 
 		private bool KeepFarming;
 		private bool NowFarming;
+		private bool ParsingScheduled;
 		private bool StickyPause;
 
 		internal CardsFarmer(Bot bot) {
-			if (bot == null) {
-				throw new ArgumentNullException(nameof(bot));
-			}
-
-			Bot = bot;
+			Bot = bot ?? throw new ArgumentNullException(nameof(bot));
 
 			if (Program.GlobalConfig.IdleFarmingPeriod > 0) {
 				IdleFarmingTimer = new Timer(
-					e => CheckGamesForFarming(),
+					async e => await CheckGamesForFarming().ConfigureAwait(false),
 					null,
 					TimeSpan.FromHours(Program.GlobalConfig.IdleFarmingPeriod) + TimeSpan.FromMinutes(0.5 * Bot.Bots.Count), // Delay
 					TimeSpan.FromHours(Program.GlobalConfig.IdleFarmingPeriod) // Period
@@ -87,6 +85,7 @@ namespace ArchiSteamFarm {
 
 		public void Dispose() {
 			// Those are objects that are always being created if constructor doesn't throw exception
+			EventSemaphore.Dispose();
 			FarmingSemaphore.Dispose();
 			FarmResetEvent.Dispose();
 
@@ -97,18 +96,38 @@ namespace ArchiSteamFarm {
 		internal void OnDisconnected() => StopFarming().Forget();
 
 		internal async Task OnNewGameAdded() {
-			// If we're not farming yet, obviously it's worth it to make a check
-			if (!NowFarming) {
-				StartFarming().Forget();
-				return;
+			// We aim to have a maximum of 2 tasks, one already parsing, and one waiting in the queue
+			// This way we can call this function as many times as needed e.g. because of Steam events
+			lock (EventSemaphore) {
+				if (ParsingScheduled) {
+					return;
+				}
+
+				ParsingScheduled = true;
 			}
 
-			// If we have Complex algorithm and some games to boost, it's also worth to make a re-check, but only in this case
-			// That's because we would check for new games after our current round anyway, and having extra games in the queue right away doesn't change anything
-			// Therefore, there is no need for extra restart of CardsFarmer if we have no games under HoursToBump hours in current round
-			if (Bot.BotConfig.CardDropsRestricted && (GamesToFarm.Count > 0) && (GamesToFarm.Min(game => game.HoursPlayed) < HoursToBump)) {
-				await StopFarming().ConfigureAwait(false);
-				StartFarming().Forget();
+			await EventSemaphore.WaitAsync().ConfigureAwait(false);
+
+			try {
+				lock (EventSemaphore) {
+					ParsingScheduled = false;
+				}
+
+				// If we're not farming yet, obviously it's worth it to make a check
+				if (!NowFarming) {
+					await StartFarming().ConfigureAwait(false);
+					return;
+				}
+
+				// If we have Complex algorithm and some games to boost, it's also worth to make a re-check, but only in this case
+				// That's because we would check for new games after our current round anyway, and having extra games in the queue right away doesn't change anything
+				// Therefore, there is no need for extra restart of CardsFarmer if we have no games under HoursToBump hours in current round
+				if (Bot.BotConfig.CardDropsRestricted && (GamesToFarm.Count > 0) && (GamesToFarm.Min(game => game.HoursPlayed) < HoursToBump)) {
+					await StopFarming().ConfigureAwait(false);
+					await StartFarming().ConfigureAwait(false);
+				}
+			} finally {
+				EventSemaphore.Release();
 			}
 		}
 
@@ -134,7 +153,7 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal void Resume(bool userAction) {
+		internal async Task Resume(bool userAction) {
 			if (StickyPause) {
 				if (!userAction) {
 					Bot.ArchiLogger.LogGenericInfo(Strings.IgnoredStickyPauseEnabled);
@@ -146,7 +165,7 @@ namespace ArchiSteamFarm {
 
 			Paused = false;
 			if (!NowFarming) {
-				StartFarming().Forget();
+				await StartFarming().ConfigureAwait(false);
 			}
 		}
 
@@ -198,54 +217,10 @@ namespace ArchiSteamFarm {
 				}
 
 				KeepFarming = NowFarming = true;
+				Farm().Forget(); // Farm() will end when we're done farming, so don't wait for it
 			} finally {
 				FarmingSemaphore.Release();
 			}
-
-			do {
-				// Now the algorithm used for farming depends on whether account is restricted or not
-				if (Bot.BotConfig.CardDropsRestricted) { // If we have restricted card drops, we use complex algorithm
-					Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.ChosenFarmingAlgorithm, "Complex"));
-					while (GamesToFarm.Count > 0) {
-						HashSet<Game> gamesToFarmSolo = GamesToFarm.Count > 1 ? new HashSet<Game>(GamesToFarm.Where(game => game.HoursPlayed >= HoursToBump)) : new HashSet<Game>(GamesToFarm);
-						if (gamesToFarmSolo.Count > 0) {
-							while (gamesToFarmSolo.Count > 0) {
-								Game game = gamesToFarmSolo.First();
-								if (await FarmSolo(game).ConfigureAwait(false)) {
-									gamesToFarmSolo.Remove(game);
-								} else {
-									NowFarming = false;
-									return;
-								}
-							}
-						} else {
-							if (FarmMultiple(GamesToFarm.OrderByDescending(game => game.HoursPlayed).Take(ArchiHandler.MaxGamesPlayedConcurrently))) {
-								Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.IdlingFinishedForGames, string.Join(", ", GamesToFarm.Select(game => game.AppID))));
-							} else {
-								NowFarming = false;
-								return;
-							}
-						}
-					}
-				} else { // If we have unrestricted card drops, we use simple algorithm
-					Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.ChosenFarmingAlgorithm, "Simple"));
-					while (GamesToFarm.Count > 0) {
-						Game game = GamesToFarm.First();
-						if (await FarmSolo(game).ConfigureAwait(false)) {
-							continue;
-						}
-
-						NowFarming = false;
-						return;
-					}
-				}
-			} while (await IsAnythingToFarm().ConfigureAwait(false));
-
-			CurrentGamesFarming.ClearAndTrim();
-			NowFarming = false;
-
-			Bot.ArchiLogger.LogGenericInfo(Strings.IdlingFinished);
-			await Bot.OnFarmingFinished(true).ConfigureAwait(false);
 		}
 
 		internal async Task StopFarming() {
@@ -297,12 +272,12 @@ namespace ArchiSteamFarm {
 			GamesToFarm.Add(new Game(appID, name, hours, cardsRemaining.Value));
 		}
 
-		private void CheckGamesForFarming() {
+		private async Task CheckGamesForFarming() {
 			if (NowFarming || Paused || !Bot.IsConnectedAndLoggedOn) {
 				return;
 			}
 
-			StartFarming().Forget();
+			await StartFarming().ConfigureAwait(false);
 		}
 
 		private async Task CheckPage(HtmlDocument htmlDocument) {
@@ -434,8 +409,7 @@ namespace ArchiSteamFarm {
 
 				appIDString = appIDSplitted[4];
 
-				uint appID;
-				if (!uint.TryParse(appIDString, out appID) || (appID == 0)) {
+				if (!uint.TryParse(appIDString, out uint appID) || (appID == 0)) {
 					Bot.ArchiLogger.LogNullError(nameof(appID));
 					continue;
 				}
@@ -445,8 +419,7 @@ namespace ArchiSteamFarm {
 					continue;
 				}
 
-				DateTime lastPICSReport;
-				if (IgnoredAppIDs.TryGetValue(appID, out lastPICSReport)) {
+				if (IgnoredAppIDs.TryGetValue(appID, out DateTime lastPICSReport)) {
 					if (lastPICSReport.AddHours(HoursToIgnore) < DateTime.UtcNow) {
 						// This game served its time as being ignored
 						IgnoredAppIDs.TryRemove(appID, out lastPICSReport);
@@ -491,6 +464,11 @@ namespace ArchiSteamFarm {
 
 					// To save us on extra work, check cards earned so far first
 					HtmlNode cardsEarnedNode = htmlNode.SelectSingleNode(".//div[@class='card_drop_info_header']");
+					if (cardsEarnedNode == null) {
+						Bot.ArchiLogger.LogNullError(nameof(cardsEarnedNode));
+						continue;
+					}
+
 					string cardsEarnedText = cardsEarnedNode.InnerText;
 					if (string.IsNullOrEmpty(cardsEarnedText)) {
 						Bot.ArchiLogger.LogNullError(nameof(cardsEarnedText));
@@ -503,8 +481,7 @@ namespace ArchiSteamFarm {
 						continue;
 					}
 
-					ushort cardsEarned;
-					if (!ushort.TryParse(cardsEarnedMatch.Value, out cardsEarned)) {
+					if (!ushort.TryParse(cardsEarnedMatch.Value, out ushort cardsEarned)) {
 						Bot.ArchiLogger.LogNullError(nameof(cardsEarned));
 						continue;
 					}
@@ -620,6 +597,53 @@ namespace ArchiSteamFarm {
 			}
 
 			await CheckPage(htmlDocument).ConfigureAwait(false);
+		}
+
+		private async Task Farm() {
+			do {
+				// Now the algorithm used for farming depends on whether account is restricted or not
+				if (Bot.BotConfig.CardDropsRestricted) { // If we have restricted card drops, we use complex algorithm
+					Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.ChosenFarmingAlgorithm, "Complex"));
+					while (GamesToFarm.Count > 0) {
+						HashSet<Game> gamesToFarmSolo = GamesToFarm.Count > 1 ? new HashSet<Game>(GamesToFarm.Where(game => game.HoursPlayed >= HoursToBump)) : new HashSet<Game>(GamesToFarm);
+						if (gamesToFarmSolo.Count > 0) {
+							while (gamesToFarmSolo.Count > 0) {
+								Game game = gamesToFarmSolo.First();
+								if (await FarmSolo(game).ConfigureAwait(false)) {
+									gamesToFarmSolo.Remove(game);
+								} else {
+									NowFarming = false;
+									return;
+								}
+							}
+						} else {
+							if (FarmMultiple(GamesToFarm.OrderByDescending(game => game.HoursPlayed).Take(ArchiHandler.MaxGamesPlayedConcurrently))) {
+								Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.IdlingFinishedForGames, string.Join(", ", GamesToFarm.Select(game => game.AppID))));
+							} else {
+								NowFarming = false;
+								return;
+							}
+						}
+					}
+				} else { // If we have unrestricted card drops, we use simple algorithm
+					Bot.ArchiLogger.LogGenericInfo(string.Format(Strings.ChosenFarmingAlgorithm, "Simple"));
+					while (GamesToFarm.Count > 0) {
+						Game game = GamesToFarm.First();
+						if (await FarmSolo(game).ConfigureAwait(false)) {
+							continue;
+						}
+
+						NowFarming = false;
+						return;
+					}
+				}
+			} while (await IsAnythingToFarm().ConfigureAwait(false));
+
+			CurrentGamesFarming.ClearAndTrim();
+			NowFarming = false;
+
+			Bot.ArchiLogger.LogGenericInfo(Strings.IdlingFinished);
+			await Bot.OnFarmingFinished(true).ConfigureAwait(false);
 		}
 
 		private async Task<bool> Farm(Game game) {
@@ -775,8 +799,7 @@ namespace ArchiSteamFarm {
 				return 0;
 			}
 
-			ushort cardsRemaining;
-			if (ushort.TryParse(match.Value, out cardsRemaining) && (cardsRemaining != 0)) {
+			if (ushort.TryParse(match.Value, out ushort cardsRemaining) && (cardsRemaining != 0)) {
 				return cardsRemaining;
 			}
 
@@ -811,15 +834,15 @@ namespace ArchiSteamFarm {
 
 			GamesToFarm.ClearAndTrim();
 
-			List<Task> backgroundTasks = new List<Task>();
-			Task task = CheckPage(htmlDocument);
+			List<Task> tasks = new List<Task>();
+			Task mainTask = CheckPage(htmlDocument);
 
 			switch (Program.GlobalConfig.OptimizationMode) {
 				case GlobalConfig.EOptimizationMode.MinMemoryUsage:
-					await task.ConfigureAwait(false);
+					await mainTask.ConfigureAwait(false);
 					break;
 				default:
-					backgroundTasks.Add(task);
+					tasks.Add(mainTask);
 					break;
 			}
 
@@ -837,15 +860,15 @@ namespace ArchiSteamFarm {
 						for (byte page = 2; page <= maxPages; page++) {
 							// We need a copy of variable being passed when in for loops, as loop will proceed before our task is launched
 							byte currentPage = page;
-							backgroundTasks.Add(CheckPage(currentPage));
+							tasks.Add(CheckPage(currentPage));
 						}
 
 						break;
 				}
 			}
 
-			if (backgroundTasks.Count > 0) {
-				await Task.WhenAll(backgroundTasks).ConfigureAwait(false);
+			if (tasks.Count > 0) {
+				await Task.WhenAll(tasks).ConfigureAwait(false);
 			}
 
 			SortGamesToFarm();

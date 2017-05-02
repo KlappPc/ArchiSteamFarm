@@ -46,7 +46,7 @@ namespace ArchiSteamFarm {
 		private readonly object FileLock = new object();
 
 		internal uint CellID {
-			get { return _CellID; }
+			get => _CellID;
 			set {
 				if ((value == 0) || (_CellID == value)) {
 					return;
@@ -73,9 +73,7 @@ namespace ArchiSteamFarm {
 		}
 
 		// This constructor is used only by deserializer
-		private GlobalDatabase() {
-			ServerListProvider.ServerListUpdated += OnServerListUpdated;
-		}
+		private GlobalDatabase() => ServerListProvider.ServerListUpdated += OnServerListUpdated;
 
 		public void Dispose() => ServerListProvider.ServerListUpdated -= OnServerListUpdated;
 

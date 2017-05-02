@@ -75,14 +75,16 @@ namespace ArchiSteamFarm {
 			}
 
 			if ((AutoUpdatesTimer == null) && Program.GlobalConfig.AutoUpdates) {
+				TimeSpan autoUpdatePeriod = TimeSpan.FromHours(AutoUpdatePeriodInHours);
+
 				AutoUpdatesTimer = new Timer(
 					async e => await CheckForUpdate().ConfigureAwait(false),
 					null,
-					TimeSpan.FromHours(AutoUpdatePeriodInHours), // Delay
-					TimeSpan.FromHours(AutoUpdatePeriodInHours) // Period
+					autoUpdatePeriod, // Delay
+					autoUpdatePeriod // Period
 				);
 
-				ArchiLogger.LogGenericInfo(string.Format(Strings.AutoUpdateCheckInfo, AutoUpdatePeriodInHours));
+				ArchiLogger.LogGenericInfo(string.Format(Strings.AutoUpdateCheckInfo, autoUpdatePeriod.ToHumanReadable()));
 			}
 
 			string releaseURL = SharedInfo.GithubReleaseURL;
@@ -119,7 +121,13 @@ namespace ArchiSteamFarm {
 
 			ArchiLogger.LogGenericInfo(string.Format(Strings.UpdateVersionInfo, SharedInfo.Version, newVersion));
 
-			if (SharedInfo.Version.CompareTo(newVersion) >= 0) { // If local version is the same or newer than remote version
+			if (SharedInfo.Version == newVersion) {
+				return;
+			}
+
+			if (SharedInfo.Version > newVersion) {
+				ArchiLogger.LogGenericWarning(Strings.WarningPreReleaseVersion);
+				await Task.Delay(15 * 1000).ConfigureAwait(false);
 				return;
 			}
 
@@ -141,7 +149,7 @@ namespace ArchiSteamFarm {
 			}
 
 			string exeFileName = Path.GetFileName(exeFile);
-			GitHub.ReleaseResponse.Asset binaryAsset = releaseResponse.Assets.FirstOrDefault(asset => !string.IsNullOrEmpty(asset.Name) && asset.Name.Equals(exeFileName, StringComparison.OrdinalIgnoreCase));
+			GitHub.ReleaseResponse.Asset binaryAsset = releaseResponse.Assets.FirstOrDefault(asset => asset.Name.Equals(exeFileName, StringComparison.OrdinalIgnoreCase));
 
 			if (binaryAsset == null) {
 				ArchiLogger.LogGenericWarning(Strings.ErrorUpdateNoAssetForThisBinary);
@@ -219,7 +227,7 @@ namespace ArchiSteamFarm {
 						continue;
 				}
 
-				new Bot(botName).Forget();
+				Bot.RegisterBot(botName);
 			}
 
 			if (Bot.Bots.Count == 0) {
@@ -261,7 +269,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			new Bot(botName).Forget();
+			Bot.RegisterBot(botName);
 		}
 
 		private static async void OnChanged(object sender, FileSystemEventArgs e) {
@@ -281,15 +289,13 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			Bot bot;
-			if (!Bot.Bots.TryGetValue(botName, out bot)) {
+			if (!Bot.Bots.TryGetValue(botName, out Bot bot)) {
 				return;
 			}
 
 			DateTime lastWriteTime = File.GetLastWriteTime(e.FullPath);
 
-			DateTime savedLastWriteTime;
-			if (LastWriteTimes.TryGetValue(bot, out savedLastWriteTime)) {
+			if (LastWriteTimes.TryGetValue(bot, out DateTime savedLastWriteTime)) {
 				if (savedLastWriteTime >= lastWriteTime) {
 					return;
 				}
@@ -313,10 +319,10 @@ namespace ArchiSteamFarm {
 				}
 			}
 
-			bot.OnNewConfigLoaded(new BotConfigEventArgs(BotConfig.Load(e.FullPath))).Forget();
+			await bot.OnNewConfigLoaded(new BotConfigEventArgs(BotConfig.Load(e.FullPath))).ConfigureAwait(false);
 		}
 
-		private static void OnCreated(object sender, FileSystemEventArgs e) {
+		private static async void OnCreated(object sender, FileSystemEventArgs e) {
 			if ((sender == null) || (e == null)) {
 				ArchiLogger.LogNullError(nameof(sender) + " || " + nameof(e));
 				return;
@@ -327,7 +333,13 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			CreateBot(botName).Forget();
+			if (botName.Equals(SharedInfo.ASF)) {
+				ArchiLogger.LogGenericInfo(Strings.GlobalConfigChanged);
+				await RestartOrExit().ConfigureAwait(false);
+				return;
+			}
+
+			await CreateBot(botName).ConfigureAwait(false);
 		}
 
 		private static async void OnDeleted(object sender, FileSystemEventArgs e) {
@@ -342,14 +354,20 @@ namespace ArchiSteamFarm {
 			}
 
 			if (botName.Equals(SharedInfo.ASF)) {
+				// Some editors might decide to delete file and re-create it in order to modify it
+				// If that's the case, we wait for maximum of 5 seconds before shutting down
+				await Task.Delay(5000).ConfigureAwait(false);
+				if (File.Exists(e.FullPath)) {
+					return;
+				}
+
 				ArchiLogger.LogGenericError(Strings.ErrorGlobalConfigRemoved);
 				await Program.Exit(1).ConfigureAwait(false);
 				return;
 			}
 
-			Bot bot;
-			if (Bot.Bots.TryGetValue(botName, out bot)) {
-				bot.OnNewConfigLoaded(new BotConfigEventArgs()).Forget();
+			if (Bot.Bots.TryGetValue(botName, out Bot bot)) {
+				await bot.OnNewConfigLoaded(new BotConfigEventArgs()).ConfigureAwait(false);
 			}
 		}
 
@@ -370,9 +388,8 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			Bot bot;
-			if (Bot.Bots.TryGetValue(oldBotName, out bot)) {
-				bot.OnNewConfigLoaded(new BotConfigEventArgs()).Forget();
+			if (Bot.Bots.TryGetValue(oldBotName, out Bot bot)) {
+				await bot.OnNewConfigLoaded(new BotConfigEventArgs()).ConfigureAwait(false);
 			}
 
 			string newBotName = Path.GetFileNameWithoutExtension(e.Name);
@@ -380,7 +397,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			CreateBot(newBotName).Forget();
+			await CreateBot(newBotName).ConfigureAwait(false);
 		}
 
 		private static async Task RestartOrExit() {
@@ -398,9 +415,7 @@ namespace ArchiSteamFarm {
 		internal sealed class BotConfigEventArgs : EventArgs {
 			internal readonly BotConfig BotConfig;
 
-			internal BotConfigEventArgs(BotConfig botConfig = null) {
-				BotConfig = botConfig;
-			}
+			internal BotConfigEventArgs(BotConfig botConfig = null) => BotConfig = botConfig;
 		}
 
 		internal enum EUserInputType : byte {

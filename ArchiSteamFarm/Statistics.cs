@@ -33,6 +33,7 @@ using SteamKit2;
 namespace ArchiSteamFarm {
 	internal sealed class Statistics : IDisposable {
 		private const byte MinAnnouncementCheckTTL = 6; // Minimum amount of hours we must wait before checking eligibility for Announcement, should be lower than MinPersonaStateTTL
+		private const byte MinCardsCount = 100; // Minimum amount of cards to be eligible for public listing
 		private const byte MinHeartBeatTTL = 10; // Minimum amount of minutes we must wait before sending next HeartBeat
 		private const byte MinPersonaStateTTL = 8; // Minimum amount of hours we must wait before requesting persona state update
 
@@ -47,13 +48,7 @@ namespace ArchiSteamFarm {
 		private DateTime LastPersonaStateRequest = DateTime.MinValue;
 		private bool ShouldSendHeartBeats;
 
-		internal Statistics(Bot bot) {
-			if (bot == null) {
-				throw new ArgumentNullException(nameof(bot));
-			}
-
-			Bot = bot;
-		}
+		internal Statistics(Bot bot) => Bot = bot ?? throw new ArgumentNullException(nameof(bot));
 
 		public void Dispose() => Semaphore.Dispose();
 
@@ -128,7 +123,6 @@ namespace ArchiSteamFarm {
 					return;
 				}
 
-				await Trading.LimitInventoryRequestsAsync().ConfigureAwait(false);
 				HashSet<Steam.Item> inventory = await Bot.ArchiWebHandler.GetMySteamInventory(true, new HashSet<Steam.Item.EType> { Steam.Item.EType.TradingCard }).ConfigureAwait(false);
 
 				// This is actually inventory failure, so we'll stop sending heartbeats but not record it as valid check
@@ -137,8 +131,8 @@ namespace ArchiSteamFarm {
 					return;
 				}
 
-				// This is inventory indeed being empty
-				if (inventory.Count == 0) {
+				// This is actual inventory
+				if (inventory.Count < MinCardsCount) {
 					LastAnnouncementCheck = DateTime.UtcNow;
 					ShouldSendHeartBeats = false;
 					return;

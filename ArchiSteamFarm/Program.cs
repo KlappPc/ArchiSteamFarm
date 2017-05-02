@@ -311,8 +311,23 @@ namespace ArchiSteamFarm {
 
 			WCF.StopServer();
 
+			if (Bot.Bots.Count == 0) {
+				return true;
+			}
+
 			IEnumerable<Task> tasks = Bot.Bots.Values.Select(bot => Task.Run(() => bot.Stop()));
-			await Task.WhenAny(Task.WhenAll(tasks), Task.Delay(10 * 1000));
+
+			switch (GlobalConfig.OptimizationMode) {
+				case GlobalConfig.EOptimizationMode.MinMemoryUsage:
+					foreach (Task task in tasks) {
+						await Task.WhenAny(task, Task.Delay(WebBrowser.MaxRetries * 1000)).ConfigureAwait(false);
+					}
+
+					break;
+				default:
+					await Task.WhenAny(Task.WhenAll(tasks), Task.Delay(Bot.Bots.Count * WebBrowser.MaxRetries * 1000)).ConfigureAwait(false);
+					break;
+			}
 
 			return true;
 		}
@@ -442,9 +457,7 @@ namespace ArchiSteamFarm {
 		}
 
 		private sealed class Service : ServiceBase {
-			internal Service() {
-				ServiceName = SharedInfo.ServiceName;
-			}
+			internal Service() => ServiceName = SharedInfo.ServiceName;
 
 			protected override void OnStart(string[] args) => Task.Run(async () => {
 				// Normally it'd make sense to use already provided string[] args parameter above

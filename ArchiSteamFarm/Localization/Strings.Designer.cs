@@ -47,7 +47,7 @@ namespace ArchiSteamFarm.Localization {
         }
         
         /// <summary>
-        ///   Zastępuje właściwość CurrentUICulture bieżącego wątku dla wszystkich
+        ///   Przesłania właściwość CurrentUICulture bieżącego wątku dla wszystkich
         ///   przypadków przeszukiwania zasobów za pomocą tej klasy zasobów wymagającej zdefiniowania typu.
         /// </summary>
         [global::System.ComponentModel.EditorBrowsableAttribute(global::System.ComponentModel.EditorBrowsableState.Advanced)]
@@ -70,7 +70,7 @@ namespace ArchiSteamFarm.Localization {
         }
         
         /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu ASF will automatically check for new versions every {0} hours..
+        /// Wyszukuje zlokalizowany ciąg podobny do ciągu ASF will automatically check for new versions every {0}..
         /// </summary>
         internal static string AutoUpdateCheckInfo {
             get {
@@ -223,7 +223,7 @@ namespace ArchiSteamFarm.Localization {
         }
         
         /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu Automatic idling is now paused! You have {0} minutes to start a game..
+        /// Wyszukuje zlokalizowany ciąg podobny do ciągu Automatic idling is now paused! You have {0} to start a game..
         /// </summary>
         internal static string BotAutomaticIdlingPausedWithCountdown {
             get {
@@ -493,7 +493,7 @@ namespace ArchiSteamFarm.Localization {
         }
         
         /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu Rate limit exceeded; we will retry after {0} minutes of cooldown....
+        /// Wyszukuje zlokalizowany ciąg podobny do ciągu Rate limit exceeded; we will retry after {0} of cooldown....
         /// </summary>
         internal static string BotRateLimitExceeded {
             get {
@@ -1225,78 +1225,6 @@ namespace ArchiSteamFarm.Localization {
         }
         
         /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu 1 day.
-        /// </summary>
-        internal static string TimeSpanDay {
-            get {
-                return ResourceManager.GetString("TimeSpanDay", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu {0} days.
-        /// </summary>
-        internal static string TimeSpanDays {
-            get {
-                return ResourceManager.GetString("TimeSpanDays", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu 1 hour.
-        /// </summary>
-        internal static string TimeSpanHour {
-            get {
-                return ResourceManager.GetString("TimeSpanHour", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu {0} hours.
-        /// </summary>
-        internal static string TimeSpanHours {
-            get {
-                return ResourceManager.GetString("TimeSpanHours", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu 1 minute.
-        /// </summary>
-        internal static string TimeSpanMinute {
-            get {
-                return ResourceManager.GetString("TimeSpanMinute", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu {0} minutes.
-        /// </summary>
-        internal static string TimeSpanMinutes {
-            get {
-                return ResourceManager.GetString("TimeSpanMinutes", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu 1 second.
-        /// </summary>
-        internal static string TimeSpanSecond {
-            get {
-                return ResourceManager.GetString("TimeSpanSecond", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        /// Wyszukuje zlokalizowany ciąg podobny do ciągu {0} seconds.
-        /// </summary>
-        internal static string TimeSpanSeconds {
-            get {
-                return ResourceManager.GetString("TimeSpanSeconds", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         /// Wyszukuje zlokalizowany ciąg podobny do ciągu ASF will attempt to use your preferred {0} culture, but translation in that language was completed only in {1}. Perhaps you could help us improve ASF translation for your language?.
         /// </summary>
         internal static string TranslationIncomplete {
@@ -1491,6 +1419,15 @@ namespace ArchiSteamFarm.Localization {
         internal static string WarningIdlingGameMismatch {
             get {
                 return ResourceManager.GetString("WarningIdlingGameMismatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        /// Wyszukuje zlokalizowany ciąg podobny do ciągu You&apos;re using a version that is newer than latest released version for your update channel. Please note that pre-release versions are dedicated to users who know how to report bugs, deal with issues and give feedback - no technical support will be given..
+        /// </summary>
+        internal static string WarningPreReleaseVersion {
+            get {
+                return ResourceManager.GetString("WarningPreReleaseVersion", resourceCulture);
             }
         }
         
