@@ -56,6 +56,7 @@ namespace ArchiSteamFarm {
 
 		private static readonly SemaphoreSlim GiftsSemaphore = new SemaphoreSlim(1);
 		private static readonly SemaphoreSlim LoginSemaphore = new SemaphoreSlim(1);
+
 		internal readonly ArchiLogger ArchiLogger;
 		internal readonly ArchiWebHandler ArchiWebHandler;
 		internal readonly string BotName;
@@ -1262,6 +1263,10 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
+			if (BotConfig.FarmOffline) {
+				return;
+			}
+
 			// We can't use SetPersonaState() before SK2 in fact registers our nickname
 			// This is pretty rare, but SK2 SteamFriends handler and this handler could execute at the same time
 			// So we wait for nickname to be registered (with timeout of 5 tries/seconds)
@@ -1277,7 +1282,7 @@ namespace ArchiSteamFarm {
 			}
 
 			try {
-				await SteamFriends.SetPersonaState(BotConfig.FarmOffline ? EPersonaState.Offline : EPersonaState.Online);
+				await SteamFriends.SetPersonaState(EPersonaState.Online);
 			} catch (Exception e) {
 				ArchiLogger.LogGenericException(e);
 			}
@@ -1473,17 +1478,14 @@ namespace ArchiSteamFarm {
 		}
 
 		private async void OnFriendMsg(SteamFriends.FriendMsgCallback callback) {
-			if (callback == null) {
-				ArchiLogger.LogNullError(nameof(callback));
+			if (callback?.Sender == null) {
+				ArchiLogger.LogNullError(nameof(callback) + " || " + nameof(callback.Sender));
 				return;
 			}
 
-			if (callback.EntryType != EChatEntryType.ChatMsg) {
-				return;
-			}
-
-			if ((callback.Sender == null) || string.IsNullOrEmpty(callback.Message)) {
-				ArchiLogger.LogNullError(nameof(callback.Sender) + " || " + nameof(callback.Message));
+			// We should never ever get friend message in the first place when we're using FarmOffline
+			// But due to Valve's fuckups, everything is possible, and this case must be checked too
+			if ((callback.EntryType != EChatEntryType.ChatMsg) || string.IsNullOrEmpty(callback.Message) || (BotConfig.FarmOffline && BotConfig.HandleOfflineMessages)) {
 				return;
 			}
 
@@ -1514,6 +1516,8 @@ namespace ArchiSteamFarm {
 			if (DateTime.UtcNow.Subtract(lastMessage.Timestamp).TotalHours > 1) {
 				return;
 			}
+
+			ArchiLogger.LogGenericTrace(callback.SteamID.ConvertToUInt64() + ": " + lastMessage.Message);
 
 			// Handle the message
 			await HandleMessage(callback.SteamID, callback.SteamID, lastMessage.Message).ConfigureAwait(false);
@@ -3241,7 +3245,7 @@ namespace ArchiSteamFarm {
 											Tuple<EResult, EPurchaseResultDetail?> walletResult = await currentBot.ArchiWebHandler.RedeemWalletKey(key).ConfigureAwait(false);
 											if (walletResult != null) {
 												result.Result = walletResult.Item1;
-												result.PurchaseResultDetail = walletResult.Item2.GetValueOrDefault(walletResult.Item1 == EResult.OK ? EPurchaseResultDetail.NoDetail : EPurchaseResultDetail.DuplicateActivationCode);
+												result.PurchaseResultDetail = walletResult.Item2.GetValueOrDefault(walletResult.Item1 == EResult.OK ? EPurchaseResultDetail.NoDetail : EPurchaseResultDetail.CannotRedeemCodeFromClient);
 											} else {
 												result.Result = EResult.Timeout;
 												result.PurchaseResultDetail = EPurchaseResultDetail.Timeout;
@@ -3249,11 +3253,9 @@ namespace ArchiSteamFarm {
 										}
 
 										if ((result.Items != null) && (result.Items.Count > 0)) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
-										} else if (result.Result == EResult.OK) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.PurchaseResultDetail), currentBot.BotName));
+											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
 										} else {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result), currentBot.BotName));
+											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
 										}
 
 										if ((result.Result != EResult.Timeout) && (result.PurchaseResultDetail != EPurchaseResultDetail.Timeout)) {
@@ -3273,11 +3275,9 @@ namespace ArchiSteamFarm {
 									case EPurchaseResultDetail.RateLimited:
 									case EPurchaseResultDetail.RestrictedCountry:
 										if ((result.Items != null) && (result.Items.Count > 0)) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
-										} else if (result.Result == EResult.OK) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.PurchaseResultDetail), currentBot.BotName));
+											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
 										} else {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result), currentBot.BotName));
+											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
 										}
 
 										if (!forward || (keepMissingGames && (result.PurchaseResultDetail != EPurchaseResultDetail.AlreadyPurchased))) {
@@ -3296,7 +3296,7 @@ namespace ArchiSteamFarm {
 										foreach (Bot bot in Bots.Where(bot => (bot.Value != previousBot) && (!redeemFlags.HasFlag(ERedeemFlags.SkipInitial) || (bot.Value != this)) && bot.Value.IsConnectedAndLoggedOn && ((items.Count == 0) || items.Keys.Any(packageID => !bot.Value.OwnedPackageIDs.Contains(packageID)))).OrderBy(bot => bot.Key).Select(bot => bot.Value)) {
 											ArchiHandler.PurchaseResponseCallback otherResult = await bot.ArchiHandler.RedeemKey(key).ConfigureAwait(false);
 											if (otherResult == null) {
-												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, EPurchaseResultDetail.Timeout), bot.BotName));
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, EResult.Timeout + "/" + EPurchaseResultDetail.Timeout), bot.BotName));
 												continue;
 											}
 
@@ -3310,11 +3310,9 @@ namespace ArchiSteamFarm {
 											}
 
 											if ((otherResult.Items != null) && (otherResult.Items.Count > 0)) {
-												response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, otherResult.PurchaseResultDetail, string.Join("", otherResult.Items)), bot.BotName));
-											} else if (otherResult.Result == EResult.OK) {
-												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, otherResult.PurchaseResultDetail), bot.BotName));
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, otherResult.Result + "/" + otherResult.PurchaseResultDetail, string.Join("", otherResult.Items)), bot.BotName));
 											} else {
-												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, otherResult.Result), bot.BotName));
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, otherResult.Result + "/" + otherResult.PurchaseResultDetail), bot.BotName));
 											}
 
 											if (alreadyHandled) {
@@ -3336,11 +3334,9 @@ namespace ArchiSteamFarm {
 										ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(result.PurchaseResultDetail), result.PurchaseResultDetail));
 
 										if ((result.Items != null) && (result.Items.Count > 0)) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
-										} else if (result.Result == EResult.OK) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.PurchaseResultDetail), currentBot.BotName));
+											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
 										} else {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result), currentBot.BotName));
+											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
 										}
 
 										unusedKeys.Remove(key);
@@ -3743,8 +3739,8 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 6) {
-				string messagePart = (i > 0 ? "..." : "") + message.Substring(i, Math.Min(MaxSteamMessageLength - 6, message.Length - i)) + (MaxSteamMessageLength - 6 < message.Length - i ? "..." : "");
+			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 2) {
+				string messagePart = (i > 0 ? "…" : "") + message.Substring(i, Math.Min(MaxSteamMessageLength - 2, message.Length - i)) + (MaxSteamMessageLength - 2 < message.Length - i ? "…" : "");
 				SteamFriends.SendChatRoomMessage(steamID, EChatEntryType.ChatMsg, messagePart);
 			}
 		}
@@ -3759,8 +3755,8 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 6) {
-				string messagePart = (i > 0 ? "..." : "") + message.Substring(i, Math.Min(MaxSteamMessageLength - 6, message.Length - i)) + (MaxSteamMessageLength - 6 < message.Length - i ? "..." : "");
+			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 2) {
+				string messagePart = (i > 0 ? "…" : "") + message.Substring(i, Math.Min(MaxSteamMessageLength - 2, message.Length - i)) + (MaxSteamMessageLength - 2 < message.Length - i ? "…" : "");
 				SteamFriends.SendChatMessage(steamID, EChatEntryType.ChatMsg, messagePart);
 			}
 		}
