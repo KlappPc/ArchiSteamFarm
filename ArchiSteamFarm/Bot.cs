@@ -520,6 +520,11 @@ namespace ArchiSteamFarm {
 			}
 
 			if (BotConfig.ShutdownOnFarmingFinished) {
+				if (farmedSomething || (Program.GlobalConfig.IdleFarmingPeriod == 0)) {
+					Stop();
+					return;
+				}
+
 				if (SkipFirstShutdown) {
 					SkipFirstShutdown = false;
 				} else {
@@ -798,16 +803,16 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal void SendMessage(ulong steamID, string message) {
+		internal async Task SendMessage(ulong steamID, string message) {
 			if ((steamID == 0) || string.IsNullOrEmpty(message)) {
 				ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(message));
 				return;
 			}
 
 			if (new SteamID(steamID).IsChatAccount) {
-				SendMessageToChannel(steamID, message);
+				await SendMessageToChannel(steamID, message).ConfigureAwait(false);
 			} else {
-				SendMessageToUser(steamID, message);
+				await SendMessageToUser(steamID, message).ConfigureAwait(false);
 			}
 		}
 
@@ -1006,7 +1011,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			SendMessage(chatID, response);
+			await SendMessage(chatID, response).ConfigureAwait(false);
 		}
 
 		private async Task HeartBeat() {
@@ -1163,6 +1168,10 @@ namespace ArchiSteamFarm {
 		}
 
 		private async Task InitStart() {
+			if ((BotConfig == null) || (BotDatabase == null)) {
+				return;
+			}
+
 			if (!BotConfig.Enabled) {
 				ArchiLogger.LogGenericInfo(Strings.BotInstanceNotStartingBecauseDisabled);
 				return;
@@ -1171,6 +1180,9 @@ namespace ArchiSteamFarm {
 			// Start
 			await Start().ConfigureAwait(false);
 		}
+
+		// This function should have no processing, it's just an alias to lowest permission having a command access
+		private bool IsAllowedToExecuteCommands(ulong steamID) => IsFamilySharing(steamID);
 
 		private bool IsFamilySharing(ulong steamID) {
 			if (steamID == 0) {
@@ -1307,16 +1319,20 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			if (callback.ChatMsgType != EChatEntryType.ChatMsg) {
+			if ((callback.ChatMsgType != EChatEntryType.ChatMsg) || string.IsNullOrEmpty(callback.Message)) {
 				return;
 			}
 
-			if ((callback.ChatRoomID == null) || (callback.ChatterID == null) || string.IsNullOrEmpty(callback.Message)) {
-				ArchiLogger.LogNullError(nameof(callback.ChatRoomID) + " || " + nameof(callback.ChatterID) + " || " + nameof(callback.Message));
+			if ((callback.ChatRoomID == null) || (callback.ChatterID == null)) {
+				ArchiLogger.LogNullError(nameof(callback.ChatRoomID) + " || " + nameof(callback.ChatterID));
 				return;
 			}
 
 			ArchiLogger.LogGenericTrace(callback.ChatRoomID.ConvertToUInt64() + "/" + callback.ChatterID.ConvertToUInt64() + ": " + callback.Message);
+
+			if (!IsAllowedToExecuteCommands(callback.ChatterID)) {
+				return;
+			}
 
 			switch (callback.Message.ToUpperInvariant()) {
 				case "!LEAVE":
@@ -1483,13 +1499,18 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			// We should never ever get friend message in the first place when we're using FarmOffline
-			// But due to Valve's fuckups, everything is possible, and this case must be checked too
-			if ((callback.EntryType != EChatEntryType.ChatMsg) || string.IsNullOrEmpty(callback.Message) || (BotConfig.FarmOffline && BotConfig.HandleOfflineMessages)) {
+			if ((callback.EntryType != EChatEntryType.ChatMsg) || string.IsNullOrEmpty(callback.Message)) {
 				return;
 			}
 
 			ArchiLogger.LogGenericTrace(callback.Sender.ConvertToUInt64() + ": " + callback.Message);
+
+			// We should never ever get friend message in the first place when we're using FarmOffline
+			// But due to Valve's fuckups, everything is possible, and this case must be checked too
+			// Additionally, we might even make use of that if user didn't enable HandleOfflineMessages
+			if (!IsAllowedToExecuteCommands(callback.Sender) || (BotConfig.FarmOffline && BotConfig.HandleOfflineMessages)) {
+				return;
+			}
 
 			await HandleMessage(callback.Sender, callback.Sender, callback.Message).ConfigureAwait(false);
 		}
@@ -1504,23 +1525,17 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			// Get last message
-			SteamFriends.FriendMsgHistoryCallback.FriendMessage lastMessage = callback.Messages[callback.Messages.Count - 1];
+			bool isAllowedToExecuteCommands = IsAllowedToExecuteCommands(callback.SteamID);
 
-			// If message is read already, return
-			if (!lastMessage.Unread) {
-				return;
+			foreach (SteamFriends.FriendMsgHistoryCallback.FriendMessage message in callback.Messages.Where(message => !string.IsNullOrEmpty(message.Message) && message.Unread)) {
+				ArchiLogger.LogGenericTrace(message.SteamID.ConvertToUInt64() + ": " + message.Message);
+
+				if (!isAllowedToExecuteCommands || (DateTime.UtcNow.Subtract(message.Timestamp).TotalHours > 1)) {
+					continue;
+				}
+
+				await HandleMessage(message.SteamID, message.SteamID, message.Message).ConfigureAwait(false);
 			}
-
-			// If message is too old, return
-			if (DateTime.UtcNow.Subtract(lastMessage.Timestamp).TotalHours > 1) {
-				return;
-			}
-
-			ArchiLogger.LogGenericTrace(callback.SteamID.ConvertToUInt64() + ": " + lastMessage.Message);
-
-			// Handle the message
-			await HandleMessage(callback.SteamID, callback.SteamID, lastMessage.Message).ConfigureAwait(false);
 		}
 
 		private void OnFriendsList(SteamFriends.FriendsListCallback callback) {
@@ -1829,12 +1844,14 @@ namespace ArchiSteamFarm {
 		}
 
 		private void OnOfflineMessage(ArchiHandler.OfflineMessageCallback callback) {
-			if (callback == null) {
-				ArchiLogger.LogNullError(nameof(callback));
+			if (callback?.Steam3IDs == null) {
+				ArchiLogger.LogNullError(nameof(callback) + " || " + nameof(callback.Steam3IDs));
 				return;
 			}
 
-			if ((callback.OfflineMessagesCount == 0) || !BotConfig.HandleOfflineMessages) {
+			// Ignore event if we don't have any messages considering any of our permitted users
+			// This allows us to skip marking offline messages as read when there is no need to ask for them
+			if ((callback.OfflineMessagesCount == 0) || (callback.Steam3IDs.Count == 0) || !BotConfig.HandleOfflineMessages || !callback.Steam3IDs.Any(steam3ID => IsAllowedToExecuteCommands(new SteamID(steam3ID, EUniverse.Public, EAccountType.Individual)))) {
 				return;
 			}
 
@@ -3214,7 +3231,7 @@ namespace ArchiSteamFarm {
 			StringBuilder response = new StringBuilder();
 
 			using (StringReader reader = new StringReader(message)) {
-				using (IEnumerator<Bot> enumerator = Bots.OrderBy(bot => bot.Key).Select(bot => bot.Value).GetEnumerator()) {
+				using (IEnumerator<Bot> enumerator = Bots.Where(bot => bot.Value.IsOperator(steamID)).OrderBy(bot => bot.Key).Select(bot => bot.Value).GetEnumerator()) {
 					string key = reader.ReadLine();
 					Bot currentBot = this;
 					while (!string.IsNullOrEmpty(key) && (currentBot != null)) {
@@ -3242,10 +3259,10 @@ namespace ArchiSteamFarm {
 										if (result.PurchaseResultDetail == EPurchaseResultDetail.CannotRedeemCodeFromClient) {
 											// If it's a wallet code, try to redeem it, and forward the result
 											// The result is final, there is no place for forwarding
-											Tuple<EResult, EPurchaseResultDetail?> walletResult = await currentBot.ArchiWebHandler.RedeemWalletKey(key).ConfigureAwait(false);
+											(EResult Result, EPurchaseResultDetail? PurchaseResult)? walletResult = await currentBot.ArchiWebHandler.RedeemWalletKey(key).ConfigureAwait(false);
 											if (walletResult != null) {
-												result.Result = walletResult.Item1;
-												result.PurchaseResultDetail = walletResult.Item2.GetValueOrDefault(walletResult.Item1 == EResult.OK ? EPurchaseResultDetail.NoDetail : EPurchaseResultDetail.CannotRedeemCodeFromClient);
+												result.Result = walletResult.Value.Result;
+												result.PurchaseResultDetail = walletResult.Value.PurchaseResult.GetValueOrDefault(walletResult.Value.Result == EResult.OK ? EPurchaseResultDetail.NoDetail : EPurchaseResultDetail.CannotRedeemCodeFromClient);
 											} else {
 												result.Result = EResult.Timeout;
 												result.PurchaseResultDetail = EPurchaseResultDetail.Timeout;
@@ -3729,7 +3746,7 @@ namespace ArchiSteamFarm {
 			return null;
 		}
 
-		private void SendMessageToChannel(ulong steamID, string message) {
+		private async Task SendMessageToChannel(ulong steamID, string message) {
 			if ((steamID == 0) || string.IsNullOrEmpty(message)) {
 				ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(message));
 				return;
@@ -3740,12 +3757,16 @@ namespace ArchiSteamFarm {
 			}
 
 			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 2) {
+				if (i > 0) {
+					await Task.Delay(CallbackSleep).ConfigureAwait(false);
+				}
+
 				string messagePart = (i > 0 ? "…" : "") + message.Substring(i, Math.Min(MaxSteamMessageLength - 2, message.Length - i)) + (MaxSteamMessageLength - 2 < message.Length - i ? "…" : "");
 				SteamFriends.SendChatRoomMessage(steamID, EChatEntryType.ChatMsg, messagePart);
 			}
 		}
 
-		private void SendMessageToUser(ulong steamID, string message) {
+		private async Task SendMessageToUser(ulong steamID, string message) {
 			if ((steamID == 0) || string.IsNullOrEmpty(message)) {
 				ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(message));
 				return;
@@ -3756,6 +3777,10 @@ namespace ArchiSteamFarm {
 			}
 
 			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 2) {
+				if (i > 0) {
+					await Task.Delay(CallbackSleep).ConfigureAwait(false);
+				}
+
 				string messagePart = (i > 0 ? "…" : "") + message.Substring(i, Math.Min(MaxSteamMessageLength - 2, message.Length - i)) + (MaxSteamMessageLength - 2 < message.Length - i ? "…" : "");
 				SteamFriends.SendChatMessage(steamID, EChatEntryType.ChatMsg, messagePart);
 			}
