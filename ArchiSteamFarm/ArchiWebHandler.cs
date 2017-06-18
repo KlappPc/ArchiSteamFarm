@@ -60,14 +60,16 @@ namespace ArchiSteamFarm {
 
 		private static int Timeout = GlobalConfig.DefaultConnectionTimeout * 1000; // This must be int type
 
+		private readonly SemaphoreSlim ApiKeySemaphore = new SemaphoreSlim(1);
 		private readonly Bot Bot;
 		private readonly SemaphoreSlim PublicInventorySemaphore = new SemaphoreSlim(1);
 		private readonly SemaphoreSlim SessionSemaphore = new SemaphoreSlim(1);
-		private readonly SemaphoreSlim SteamApiKeySemaphore = new SemaphoreSlim(1);
+		private readonly SemaphoreSlim TradeTokenSemaphore = new SemaphoreSlim(1);
 		private readonly WebBrowser WebBrowser;
 
+		private string CachedApiKey;
 		private bool? CachedPublicInventory;
-		private string CachedSteamApiKey;
+		private string CachedTradeToken;
 		private DateTime LastSessionRefreshCheck = DateTime.MinValue;
 		private ulong SteamID;
 
@@ -77,9 +79,10 @@ namespace ArchiSteamFarm {
 		}
 
 		public void Dispose() {
+			ApiKeySemaphore.Dispose();
 			PublicInventorySemaphore.Dispose();
 			SessionSemaphore.Dispose();
-			SteamApiKeySemaphore.Dispose();
+			TradeTokenSemaphore.Dispose();
 		}
 
 		internal async Task<bool> AcceptTradeOffer(ulong tradeID) {
@@ -137,7 +140,6 @@ namespace ArchiSteamFarm {
 			return htmlDocument?.DocumentNode.SelectSingleNode("//div[@class='add_free_content_success_area']") != null;
 		}
 
-		/*
 		internal async Task<bool> ClearFromDiscoveryQueue(uint appID) {
 			if (appID == 0) {
 				Bot.ArchiLogger.LogNullError(nameof(appID));
@@ -162,7 +164,6 @@ namespace ArchiSteamFarm {
 
 			return await WebBrowser.UrlPostRetry(request, data).ConfigureAwait(false);
 		}
-		*/
 
 		internal async Task DeclineTradeOffer(ulong tradeID) {
 			if (tradeID == 0) {
@@ -199,7 +200,6 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		/*
 		internal async Task<HashSet<uint>> GenerateNewDiscoveryQueue() {
 			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
 				return null;
@@ -220,7 +220,6 @@ namespace ArchiSteamFarm {
 			Steam.NewDiscoveryQueueResponse output = await WebBrowser.UrlPostToJsonResultRetry<Steam.NewDiscoveryQueueResponse>(request, data).ConfigureAwait(false);
 			return output?.Queue;
 		}
-		*/
 
 		internal async Task<HashSet<Steam.TradeOffer>> GetActiveTradeOffers() {
 			string steamApiKey = await GetApiKey().ConfigureAwait(false);
@@ -384,7 +383,6 @@ namespace ArchiSteamFarm {
 			return await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
 		}
 
-		/*
 		internal async Task<HtmlDocument> GetDiscoveryQueuePage() {
 			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
 				return null;
@@ -393,7 +391,6 @@ namespace ArchiSteamFarm {
 			const string request = SteamStoreURL + "/explore?l=english";
 			return await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
 		}
-		*/
 
 		internal async Task<HashSet<ulong>> GetFamilySharingSteamIDs() {
 			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
@@ -688,17 +685,6 @@ namespace ArchiSteamFarm {
 			return 0;
 		}
 
-		/*
-		internal async Task<HtmlDocument> GetSteamAwardsPage() {
-			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
-				return null;
-			}
-
-			const string request = SteamStoreURL + "/SteamAwards?l=english";
-			return await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
-		}
-		*/
-
 		internal async Task<byte?> GetTradeHoldDuration(ulong tradeID) {
 			if (tradeID == 0) {
 				Bot.ArchiLogger.LogNullError(nameof(tradeID));
@@ -747,6 +733,56 @@ namespace ArchiSteamFarm {
 
 			Bot.ArchiLogger.LogNullError(nameof(holdDuration));
 			return null;
+		}
+
+		internal async Task<string> GetTradeToken() {
+			if (CachedTradeToken != null) {
+				return CachedTradeToken;
+			}
+
+			await TradeTokenSemaphore.WaitAsync().ConfigureAwait(false);
+
+			try {
+				if (CachedTradeToken != null) {
+					return CachedTradeToken;
+				}
+
+				const string request = SteamCommunityURL + "/my/tradeoffers/privacy?l=english";
+				HtmlDocument htmlDocument = await WebBrowser.UrlGetToHtmlDocumentRetry(request).ConfigureAwait(false);
+
+				if (htmlDocument == null) {
+					return null;
+				}
+
+				HtmlNode tokenNode = htmlDocument.DocumentNode.SelectSingleNode("//input[@class='trade_offer_access_url']");
+				if (tokenNode == null) {
+					Bot.ArchiLogger.LogNullError(nameof(tokenNode));
+					return null;
+				}
+
+				string value = tokenNode.GetAttributeValue("value", null);
+				if (string.IsNullOrEmpty(value)) {
+					Bot.ArchiLogger.LogNullError(nameof(value));
+					return null;
+				}
+
+				int index = value.IndexOf("token=", StringComparison.Ordinal);
+				if (index < 0) {
+					Bot.ArchiLogger.LogNullError(nameof(index));
+					return null;
+				}
+
+				index += 6;
+				if (index + 8 < value.Length) {
+					Bot.ArchiLogger.LogNullError(nameof(index));
+					return null;
+				}
+
+				CachedTradeToken = value.Substring(index, 8);
+				return CachedTradeToken;
+			} finally {
+				TradeTokenSemaphore.Release();
+			}
 		}
 
 		internal async Task<bool?> HandleConfirmation(string deviceID, string confirmationHash, uint time, uint confirmationID, ulong confirmationKey, bool accept) {
@@ -963,8 +999,8 @@ namespace ArchiSteamFarm {
 		}
 
 		internal void OnDisconnected() {
+			CachedApiKey = CachedTradeToken = null;
 			CachedPublicInventory = null;
-			CachedSteamApiKey = null;
 			SteamID = 0;
 		}
 
@@ -1010,20 +1046,17 @@ namespace ArchiSteamFarm {
 			Steam.TradeOfferRequest singleTrade = new Steam.TradeOfferRequest();
 			HashSet<Steam.TradeOfferRequest> trades = new HashSet<Steam.TradeOfferRequest> { singleTrade };
 
-			byte itemID = 0;
 			foreach (Steam.Item item in inventory) {
-				if (itemID >= Trading.MaxItemsPerTrade) {
+				if (singleTrade.ItemsToGive.Assets.Count >= Trading.MaxItemsPerTrade) {
 					if (trades.Count >= Trading.MaxTradesPerAccount) {
 						break;
 					}
 
 					singleTrade = new Steam.TradeOfferRequest();
 					trades.Add(singleTrade);
-					itemID = 0;
 				}
 
 				singleTrade.ItemsToGive.Assets.Add(item);
-				itemID++;
 			}
 
 			const string referer = SteamCommunityURL + "/tradeoffer/new";
@@ -1045,18 +1078,18 @@ namespace ArchiSteamFarm {
 		}
 
 		private async Task<string> GetApiKey() {
-			if (CachedSteamApiKey != null) {
+			if (CachedApiKey != null) {
 				// We fetched API key already, and either got valid one, or permanent AccessDenied
 				// In any case, this is our final result
-				return CachedSteamApiKey;
+				return CachedApiKey;
 			}
 
 			// We didn't fetch API key yet
-			await SteamApiKeySemaphore.WaitAsync().ConfigureAwait(false);
+			await ApiKeySemaphore.WaitAsync().ConfigureAwait(false);
 
 			try {
-				if (CachedSteamApiKey != null) {
-					return CachedSteamApiKey;
+				if (CachedApiKey != null) {
+					return CachedApiKey;
 				}
 
 				(ESteamApiKeyState State, string Key)? result = await GetApiKeyState().ConfigureAwait(false);
@@ -1069,7 +1102,7 @@ namespace ArchiSteamFarm {
 					case ESteamApiKeyState.AccessDenied:
 						// We succeeded in fetching API key, but it resulted in access denied
 						// Cache the result as empty, API key is unavailable permanently
-						CachedSteamApiKey = string.Empty;
+						CachedApiKey = string.Empty;
 						break;
 					case ESteamApiKeyState.NotRegisteredYet:
 						// We succeeded in fetching API key, and it resulted in no key registered yet
@@ -1090,7 +1123,7 @@ namespace ArchiSteamFarm {
 					case ESteamApiKeyState.Registered:
 						// We succeeded in fetching API key, and it resulted in registered key
 						// Cache the result, this is the API key we want
-						CachedSteamApiKey = result.Value.Key;
+						CachedApiKey = result.Value.Key;
 						break;
 					default:
 						// We got an unhandled error, this should never happen
@@ -1098,9 +1131,9 @@ namespace ArchiSteamFarm {
 						break;
 				}
 
-				return CachedSteamApiKey;
+				return CachedApiKey;
 			} finally {
-				SteamApiKeySemaphore.Release();
+				ApiKeySemaphore.Release();
 			}
 		}
 
@@ -1169,34 +1202,6 @@ namespace ArchiSteamFarm {
 			Bot.ArchiLogger.LogNullError(nameof(text));
 			return (ESteamApiKeyState.Error, null);
 		}
-
-		/*
-		internal async Task<bool> SteamAwardsVote(byte voteID, uint appID) {
-			if ((voteID == 0) || (appID == 0)) {
-				Bot.ArchiLogger.LogNullError(nameof(voteID) + " || " + nameof(appID));
-				return false;
-			}
-
-			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
-				return false;
-			}
-
-			string sessionID = WebBrowser.CookieContainer.GetCookieValue(SteamStoreURL, "sessionid");
-			if (string.IsNullOrEmpty(sessionID)) {
-				Bot.ArchiLogger.LogNullError(nameof(sessionID));
-				return false;
-			}
-
-			const string request = SteamStoreURL + "/salevote";
-			Dictionary<string, string> data = new Dictionary<string, string>(3) {
-				{ "sessionid", sessionID },
-				{ "voteid", voteID.ToString() },
-				{ "appid", appID.ToString() }
-			};
-
-			return await WebBrowser.UrlPostRetry(request, data).ConfigureAwait(false);
-		}
-		*/
 
 		private static uint GetAppIDFromMarketHashName(string hashName) {
 			if (string.IsNullOrEmpty(hashName)) {

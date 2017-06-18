@@ -87,7 +87,7 @@ namespace ArchiSteamFarm {
 		private readonly SteamClient SteamClient;
 		private readonly ConcurrentHashSet<ulong> SteamFamilySharingIDs = new ConcurrentHashSet<ulong>();
 		private readonly SteamFriends SteamFriends;
-		//private readonly SteamSaleEvent SteamSaleEvent;
+		private readonly SteamSaleEvent SteamSaleEvent;
 		private readonly SteamUser SteamUser;
 		private readonly Trading Trading;
 
@@ -230,7 +230,7 @@ namespace ArchiSteamFarm {
 
 			ArchiWebHandler = new ArchiWebHandler(this);
 			CardsFarmer = new CardsFarmer(this);
-			//SteamSaleEvent = new SteamSaleEvent(this);
+			SteamSaleEvent = new SteamSaleEvent(this);
 			Trading = new Trading(this);
 
 			if (!Debugging.IsDebugBuild && Program.GlobalConfig.Statistics) {
@@ -254,7 +254,7 @@ namespace ArchiSteamFarm {
 			HeartBeatTimer.Dispose();
 			CallbackSemaphore.Dispose();
 			InitializationSemaphore.Dispose();
-			//SteamSaleEvent.Dispose();
+			SteamSaleEvent.Dispose();
 			Trading.Dispose();
 
 			// Those are objects that might be null and the check should be in-place
@@ -682,6 +682,8 @@ namespace ArchiSteamFarm {
 						return ResponseRestart(steamID);
 					case "!SA":
 						return await ResponseStatus(steamID, SharedInfo.ASF).ConfigureAwait(false);
+					case "!STATS":
+						return ResponseStats(steamID);
 					case "!STATUS":
 						return ResponseStatus(steamID);
 					case "!STOP":
@@ -1141,19 +1143,16 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			ulong steamMasterID = BotConfig.SteamUserPermissions.Where(kv => kv.Value == BotConfig.EPermission.Master).Select(kv => kv.Key).FirstOrDefault();
+			ulong steamMasterID = GetFirstSteamMasterID();
 			if (steamMasterID == 0) {
 				return;
 			}
 
-			TimeSpan delay = TimeSpan.FromHours(BotConfig.SendTradePeriod) + TimeSpan.FromMinutes(Bots.Count);
-			TimeSpan period = TimeSpan.FromHours(BotConfig.SendTradePeriod);
-
 			SendItemsTimer = new Timer(
 				async e => await ResponseLoot(steamMasterID).ConfigureAwait(false),
 				null,
-				delay, // Delay
-				period // Period
+				TimeSpan.FromHours(BotConfig.SendTradePeriod) + TimeSpan.FromMinutes(Bots.Count), // Delay
+				TimeSpan.FromHours(BotConfig.SendTradePeriod) // Period
 			);
 		}
 
@@ -1181,8 +1180,16 @@ namespace ArchiSteamFarm {
 			await Start().ConfigureAwait(false);
 		}
 
-		// This function should have no processing, it's just an alias to lowest permission having a command access
-		private bool IsAllowedToExecuteCommands(ulong steamID) => IsFamilySharing(steamID);
+		private static bool IsAllowedToExecuteCommands(ulong steamID) {
+			if (steamID == 0) {
+				ASF.ArchiLogger.LogNullError(nameof(steamID));
+				return false;
+			}
+
+			// This should have reference to lowest permission for command execution
+			bool result = Bots.Values.Any(bot => bot.IsFamilySharing(steamID));
+			return result;
+		}
 
 		private bool IsFamilySharing(ulong steamID) {
 			if (steamID == 0) {
@@ -3079,6 +3086,14 @@ namespace ArchiSteamFarm {
 
 			await CardsFarmer.Pause(sticky).ConfigureAwait(false);
 
+			if (BotConfig.GamesPlayedWhileIdle.Count > 0) {
+				// In this case we must also stop GamesPlayedWhileIdle
+				// We add extra delay because OnFarmingStopped() also executes PlayGames()
+				// Despite of proper order on our end, Steam network might not respect it
+				await Task.Delay(CallbackSleep).ConfigureAwait(false);
+				ArchiHandler.PlayGames(Enumerable.Empty<uint>(), BotConfig.CustomGamePlayedWhileIdle);
+			}
+
 			if (IsOperator(steamID)) {
 				return FormatBotResponse(Strings.BotAutomaticIdlingNowPaused);
 			}
@@ -3579,6 +3594,20 @@ namespace ArchiSteamFarm {
 
 			List<string> responses = new List<string>(results.Where(result => !string.IsNullOrEmpty(result)));
 			return responses.Count > 0 ? string.Join("", responses) : null;
+		}
+
+		private string ResponseStats(ulong steamID) {
+			if (steamID == 0) {
+				ArchiLogger.LogNullError(nameof(steamID));
+				return null;
+			}
+
+			if (!IsOwner(steamID)) {
+				return null;
+			}
+
+			ushort memoryInMegabytes = (ushort) (GC.GetTotalMemory(true) / 1024 / 1024);
+			return FormatBotResponse(string.Format(Strings.BotStats, memoryInMegabytes));
 		}
 
 		private string ResponseStatus(ulong steamID) {
