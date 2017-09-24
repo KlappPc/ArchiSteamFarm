@@ -32,13 +32,14 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Humanizer;
+using Humanizer.Localisation;
 
 namespace ArchiSteamFarm {
 	internal static class Utilities {
 		private static readonly Random Random = new Random();
 
-		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		[SuppressMessage("ReSharper", "UnusedParameter.Global")]
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
 		internal static void Forget(this object obj) { }
 
 		internal static string GetCookieValue(this CookieContainer cookieContainer, string url, string name) {
@@ -145,6 +146,6 @@ namespace ArchiSteamFarm {
 			yield return item;
 		}
 
-		internal static string ToHumanReadable(this TimeSpan timeSpan) => timeSpan.Humanize(3);
+		internal static string ToHumanReadable(this TimeSpan timeSpan) => timeSpan.Humanize(3, maxUnit: TimeUnit.Year);
 	}
 }

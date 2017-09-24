@@ -31,7 +31,6 @@ using System.Xml;
 using ArchiSteamFarm.Localization;
 using HtmlAgilityPack;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace ArchiSteamFarm {
 	internal sealed class WebBrowser : IDisposable {
@@ -42,6 +41,8 @@ namespace ArchiSteamFarm {
 		private const byte MaxIdleTime = 15; // Defines in seconds, how long socket is allowed to stay in CLOSE_WAIT state after there are no connections to it
 
 		internal readonly CookieContainer CookieContainer = new CookieContainer();
+
+		internal TimeSpan Timeout => HttpClient.Timeout;
 
 		private readonly ArchiLogger ArchiLogger;
 		private readonly HttpClient HttpClient;
@@ -120,26 +121,6 @@ namespace ArchiSteamFarm {
 			HtmlDocument result = null;
 			for (byte i = 0; (i < MaxTries) && (result == null); i++) {
 				result = await UrlGetToHtmlDocument(request, referer).ConfigureAwait(false);
-			}
-
-			if (result != null) {
-				return result;
-			}
-
-			ArchiLogger.LogGenericWarning(string.Format(Strings.ErrorRequestFailedTooManyTimes, MaxTries));
-			ArchiLogger.LogGenericDebug(string.Format(Strings.ErrorFailingRequest, request));
-			return null;
-		}
-
-		internal async Task<JObject> UrlGetToJObjectRetry(string request, string referer = null) {
-			if (string.IsNullOrEmpty(request)) {
-				ArchiLogger.LogNullError(nameof(request));
-				return null;
-			}
-
-			JObject result = null;
-			for (byte i = 0; (i < MaxTries) && (result == null); i++) {
-				result = await UrlGetToJObject(request, referer).ConfigureAwait(false);
 			}
 
 			if (result != null) {
@@ -358,29 +339,6 @@ namespace ArchiSteamFarm {
 
 			string content = await UrlGetToContent(request, referer).ConfigureAwait(false);
 			return !string.IsNullOrEmpty(content) ? StringToHtmlDocument(content) : null;
-		}
-
-		private async Task<JObject> UrlGetToJObject(string request, string referer = null) {
-			if (string.IsNullOrEmpty(request)) {
-				ArchiLogger.LogNullError(nameof(request));
-				return null;
-			}
-
-			string json = await UrlGetToContent(request, referer).ConfigureAwait(false);
-			if (string.IsNullOrEmpty(json)) {
-				return null;
-			}
-
-			JObject jObject;
-
-			try {
-				jObject = JObject.Parse(json);
-			} catch (JsonException e) {
-				ArchiLogger.LogGenericException(e);
-				return null;
-			}
-
-			return jObject;
 		}
 
 		private async Task<HttpResponseMessage> UrlGetToResponse(string request, string referer = null) {

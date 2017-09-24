@@ -3,8 +3,8 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp2.0</TargetFramework>
-    <AssemblyVersion>3.0.2.0</AssemblyVersion>
-    <FileVersion>3.0.2.0</FileVersion>
+    <AssemblyVersion>3.0.2.8</AssemblyVersion>
+    <FileVersion>3.0.2.8</FileVersion>
     <LangVersion>latest</LangVersion>
     <ErrorReport>none</ErrorReport>
     <ApplicationIcon>ASF.ico</ApplicationIcon>
@@ -19,8 +19,6 @@
     <PackageIconUrl>https://github.com/JustArchi/ArchiSteamFarm/raw/master/resources/ASF.ico</PackageIconUrl>
     <RepositoryType>Git</RepositoryType>
     <NoWarn />
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsAsErrors />
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
   </PropertyGroup>
@@ -28,16 +26,19 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="HtmlAgilityPack" Version="1.5.2-beta6" />
+    <PackageReference Include="HtmlAgilityPack" Version="1.6.0-beta1" />
     <PackageReference Include="Humanizer" Version="2.2.0" />
-    <PackageReference Include="Mono.Posix.NETStandard" Version="1.0.0-beta1" />
     <PackageReference Include="Newtonsoft.Json" Version="10.0.3" />
-    <PackageReference Include="NLog" Version="5.0.0-beta09" />
-    <PackageReference Include="SteamKit2" Version="2.0.0-Alpha6" />
+    <PackageReference Include="NLog" Version="5.0.0-beta10" />
+    <PackageReference Include="SteamKit2" Version="2.0.0-Alpha8" />
+    <PackageReference Include="System.Net.NameResolution" Version="4.3.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="4.4.0" />
+    <PackageReference Include="System.Threading.ThreadPool" Version="4.3.0" />
   </ItemGroup>
 
   <ItemGroup>

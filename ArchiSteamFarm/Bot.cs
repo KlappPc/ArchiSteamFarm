@@ -194,6 +194,7 @@ namespace ArchiSteamFarm {
 			CallbackManager.Subscribe<SteamFriends.ChatMsgCallback>(OnChatMsg);
 			CallbackManager.Subscribe<SteamFriends.FriendsListCallback>(OnFriendsList);
 			CallbackManager.Subscribe<SteamFriends.FriendMsgCallback>(OnFriendMsg);
+			CallbackManager.Subscribe<SteamFriends.FriendMsgEchoCallback>(OnFriendMsgEcho);
 			CallbackManager.Subscribe<SteamFriends.FriendMsgHistoryCallback>(OnFriendMsgHistory);
 			CallbackManager.Subscribe<SteamFriends.PersonaStateCallback>(OnPersonaState);
 
@@ -332,7 +333,6 @@ namespace ArchiSteamFarm {
 				if (packageIDs.Count > 0) {
 					DateTime mostRecent = DateTime.MinValue;
 
-					// ReSharper disable once LoopCanBePartlyConvertedToQuery - C# 7.0 out can't be used within LINQ query yet | https://github.com/dotnet/roslyn/issues/15619
 					foreach (uint packageID in packageIDs) {
 						if (!OwnedPackageIDs.TryGetValue(packageID, out (EPaymentMethod PaymentMethod, DateTime TimeCreated) packageData)) {
 							continue;
@@ -365,7 +365,6 @@ namespace ArchiSteamFarm {
 				PICSSemaphore.Release();
 			}
 
-			// ReSharper disable once LoopCanBePartlyConvertedToQuery - C# 7.0 out can't be used within LINQ query yet | https://github.com/dotnet/roslyn/issues/15619
 			foreach (Dictionary<uint, SteamApps.PICSProductInfoCallback.PICSProductInfo> productInfoApps in productInfoResultSet.Results.Select(result => result.Apps)) {
 				if (!productInfoApps.TryGetValue(appID, out SteamApps.PICSProductInfoCallback.PICSProductInfo productInfoApp)) {
 					continue;
@@ -711,205 +710,222 @@ namespace ArchiSteamFarm {
 			SteamFriends.RequestFriendInfo(SteamID, EClientPersonaStateFlag.PlayerName | EClientPersonaStateFlag.Presence);
 		}
 
-		internal async Task<string> Response(ulong steamID, string message) {
+		internal async Task<string> Response(ulong steamID, string message, ulong chatID = 0) {
 			if ((steamID == 0) || string.IsNullOrEmpty(message)) {
 				ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(message));
 				return null;
 			}
 
 			if (message[0] != '!') {
-				if (!IsMaster(steamID)) {
-					return null;
-				}
-
-				return await ResponseRedeem(steamID, message, ERedeemFlags.Validate).ConfigureAwait(false);
-			}
-
-			if (message.IndexOf(' ') < 0) {
-				switch (message.ToUpperInvariant()) {
-					case "!2FA":
-						return await Response2FA(steamID).ConfigureAwait(false);
-					case "!2FANO":
-						return await Response2FAConfirm(steamID, false).ConfigureAwait(false);
-					case "!2FAOK":
-						return await Response2FAConfirm(steamID, true).ConfigureAwait(false);
-					case "!API":
-						return ResponseAPI(steamID);
-					case "!BL":
-						return ResponseBlacklist(steamID);
-					case "!EXIT":
-						return ResponseExit(steamID);
-					case "!FARM":
-						return await ResponseFarm(steamID).ConfigureAwait(false);
-					case "!HELP":
-						return ResponseHelp(steamID);
-					case "!IQ":
-						return ResponseIdleQueue(steamID);
-					case "!LOOT":
-						return await ResponseLoot(steamID).ConfigureAwait(false);
-					case "!LOOT^":
-						return ResponseLootSwitch(steamID);
-					case "!PASSWORD":
-						return ResponsePassword(steamID);
-					case "!PAUSE":
-						return await ResponsePause(steamID, true).ConfigureAwait(false);
-					case "!PAUSE~":
-						return await ResponsePause(steamID, false).ConfigureAwait(false);
-					case "!REJOINCHAT":
-						return ResponseRejoinChat(steamID);
-					case "!RESUME":
-						return ResponseResume(steamID);
-					case "!RESTART":
-						return ResponseRestart(steamID);
-					case "!SA":
-						return await ResponseStatus(steamID, SharedInfo.ASF).ConfigureAwait(false);
-					case "!STATS":
-						return ResponseStats(steamID);
-					case "!STATUS":
-						return ResponseStatus(steamID).Response;
-					case "!STOP":
-						return ResponseStop(steamID);
-					case "!UNPACK":
-						return await ResponseUnpackBoosters(steamID).ConfigureAwait(false);
-					case "!UPDATE":
-						return await ResponseUpdate(steamID).ConfigureAwait(false);
-					case "!VERSION":
-						return ResponseVersion(steamID);
-					default:
-						return ResponseUnknown(steamID);
-				}
+				return null;
 			}
 
 			string[] args = message.Split((char[]) null, StringSplitOptions.RemoveEmptyEntries);
-			switch (args[0].ToUpperInvariant()) {
-				case "!2FA":
-					return await Response2FA(steamID, args[1]).ConfigureAwait(false);
-				case "!2FANO":
-					return await Response2FAConfirm(steamID, args[1], false).ConfigureAwait(false);
-				case "!2FAOK":
-					return await Response2FAConfirm(steamID, args[1], true).ConfigureAwait(false);
-				case "!ADDLICENSE":
-					if (args.Length > 2) {
-						return await ResponseAddLicense(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
 
-					return await ResponseAddLicense(steamID, args[1]).ConfigureAwait(false);
-				case "!API":
-					return ResponseAPI(steamID, args[1]);
-				case "!BL":
-					return await ResponseBlacklist(steamID, args[1]).ConfigureAwait(false);
-				case "!BLADD":
-					if (args.Length > 2) {
-						return await ResponseBlacklistAdd(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
+			switch (args.Length) {
+				case 0:
+					ArchiLogger.LogNullError(nameof(args));
+					return null;
+				case 1:
+					switch (args[0].ToUpperInvariant()) {
+						case "!2FA":
+							return await Response2FA(steamID).ConfigureAwait(false);
+						case "!2FANO":
+							return await Response2FAConfirm(steamID, false).ConfigureAwait(false);
+						case "!2FAOK":
+							return await Response2FAConfirm(steamID, true).ConfigureAwait(false);
+						case "!API":
+							return ResponseAPI(steamID);
+						case "!BL":
+							return ResponseBlacklist(steamID);
+						case "!EXIT":
+							return ResponseExit(steamID);
+						case "!FARM":
+							return await ResponseFarm(steamID).ConfigureAwait(false);
+						case "!HELP":
+							return ResponseHelp(steamID);
+						case "!IQ":
+							return ResponseIdleQueue(steamID);
+						case "!LEAVE":
+							if (chatID != 0) {
+								return ResponseLeave(steamID, chatID);
+							}
 
-					return await ResponseBlacklistAdd(steamID, args[1]).ConfigureAwait(false);
-				case "!BLRM":
-					if (args.Length > 2) {
-						return await ResponseBlacklistRemove(steamID, args[1], args[2]).ConfigureAwait(false);
+							goto default;
+						case "!LOOT":
+							return await ResponseLoot(steamID).ConfigureAwait(false);
+						case "!LOOT^":
+							return ResponseLootSwitch(steamID);
+						case "!PASSWORD":
+							return ResponsePassword(steamID);
+						case "!PAUSE":
+							return await ResponsePause(steamID, true).ConfigureAwait(false);
+						case "!PAUSE~":
+							return await ResponsePause(steamID, false).ConfigureAwait(false);
+						case "!REJOINCHAT":
+							return ResponseRejoinChat(steamID);
+						case "!RESUME":
+							return ResponseResume(steamID);
+						case "!RESTART":
+							return ResponseRestart(steamID);
+						case "!SA":
+							return await ResponseStatus(steamID, SharedInfo.ASF).ConfigureAwait(false);
+						case "!STATS":
+							return ResponseStats(steamID);
+						case "!STATUS":
+							return ResponseStatus(steamID).Response;
+						case "!STOP":
+							return ResponseStop(steamID);
+						case "!UNPACK":
+							return await ResponseUnpackBoosters(steamID).ConfigureAwait(false);
+						case "!UPDATE":
+							return await ResponseUpdate(steamID).ConfigureAwait(false);
+						case "!VERSION":
+							return ResponseVersion(steamID);
+						default:
+							return ResponseUnknown(steamID);
 					}
-
-					return await ResponseBlacklistRemove(steamID, args[1]).ConfigureAwait(false);
-				case "!FARM":
-					return await ResponseFarm(steamID, args[1]).ConfigureAwait(false);
-				case "!INPUT":
-					if (args.Length > 3) {
-						return await ResponseInput(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
-					}
-
-					return args.Length == 3 ? ResponseInput(steamID, args[1], args[2]) : ResponseUnknown(steamID);
-				case "!IQ":
-					return await ResponseIdleQueue(steamID, args[1]).ConfigureAwait(false);
-				case "!IQADD":
-					if (args.Length > 2) {
-						return await ResponseIdleQueueAdd(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return await ResponseIdleQueueAdd(steamID, args[1]).ConfigureAwait(false);
-				case "!IQRM":
-					if (args.Length > 2) {
-						return await ResponseIdleQueueRemove(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return await ResponseIdleQueueRemove(steamID, args[1]).ConfigureAwait(false);
-				case "!LOOT":
-					return await ResponseLoot(steamID, args[1]).ConfigureAwait(false);
-				case "!LOOT^":
-					return await ResponseLootSwitch(steamID, args[1]).ConfigureAwait(false);
-				case "!NICKNAME":
-					if (args.Length > 2) {
-						return await ResponseNickname(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return await ResponseNickname(steamID, args[1]).ConfigureAwait(false);
-				case "!OA":
-					return await ResponseOwns(steamID, SharedInfo.ASF, args[1]).ConfigureAwait(false);
-				case "!OWNS":
-					if (args.Length > 2) {
-						return await ResponseOwns(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return (await ResponseOwns(steamID, args[1]).ConfigureAwait(false)).Response;
-				case "!PASSWORD":
-					return await ResponsePassword(steamID, args[1]).ConfigureAwait(false);
-				case "!PAUSE":
-					return await ResponsePause(steamID, args[1], true).ConfigureAwait(false);
-				case "!PAUSE~":
-					return await ResponsePause(steamID, args[1], false).ConfigureAwait(false);
-				case "!PAUSE&":
-					if (args.Length > 2) {
-						return await ResponsePause(steamID, args[1], true, args[2]).ConfigureAwait(false);
-					}
-
-					return await ResponsePause(steamID, true, args[1]).ConfigureAwait(false);
-				case "!PLAY":
-					if (args.Length > 2) {
-						return await ResponsePlay(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return await ResponsePlay(steamID, args[1]).ConfigureAwait(false);
-				case "!R":
-				case "!REDEEM":
-					if (args.Length > 2) {
-						return await ResponseRedeem(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return await ResponseRedeem(steamID, args[1]).ConfigureAwait(false);
-				case "!R^":
-				case "!REDEEM^":
-					if (args.Length > 3) {
-						return await ResponseAdvancedRedeem(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
-					}
-
-					if (args.Length > 2) {
-						return await ResponseAdvancedRedeem(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return ResponseUnknown(steamID);
-				case "!REJOINCHAT":
-					return await ResponseRejoinChat(steamID, args[1]).ConfigureAwait(false);
-				case "!RESUME":
-					return await ResponseResume(steamID, args[1]).ConfigureAwait(false);
-				case "!START":
-					return await ResponseStart(steamID, args[1]).ConfigureAwait(false);
-				case "!STATUS":
-					return await ResponseStatus(steamID, args[1]).ConfigureAwait(false);
-				case "!STOP":
-					return await ResponseStop(steamID, args[1]).ConfigureAwait(false);
-				case "!TRANSFER":
-					if (args.Length > 3) {
-						return await ResponseTransfer(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
-					}
-
-					if (args.Length > 2) {
-						return await ResponseTransfer(steamID, args[1], args[2]).ConfigureAwait(false);
-					}
-
-					return ResponseUnknown(steamID);
-				case "!UNPACK":
-					return await ResponseUnpackBoosters(steamID, args[1]).ConfigureAwait(false);
 				default:
-					return ResponseUnknown(steamID);
+					switch (args[0].ToUpperInvariant()) {
+						case "!2FA":
+							return await Response2FA(steamID, args[1]).ConfigureAwait(false);
+						case "!2FANO":
+							return await Response2FAConfirm(steamID, args[1], false).ConfigureAwait(false);
+						case "!2FAOK":
+							return await Response2FAConfirm(steamID, args[1], true).ConfigureAwait(false);
+						case "!ADDLICENSE":
+							if (args.Length > 2) {
+								return await ResponseAddLicense(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponseAddLicense(steamID, args[1]).ConfigureAwait(false);
+						case "!API":
+							return ResponseAPI(steamID, args[1]);
+						case "!BL":
+							return await ResponseBlacklist(steamID, args[1]).ConfigureAwait(false);
+						case "!BLADD":
+							if (args.Length > 2) {
+								return await ResponseBlacklistAdd(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponseBlacklistAdd(steamID, args[1]).ConfigureAwait(false);
+						case "!BLRM":
+							if (args.Length > 2) {
+								return await ResponseBlacklistRemove(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponseBlacklistRemove(steamID, args[1]).ConfigureAwait(false);
+						case "!FARM":
+							return await ResponseFarm(steamID, args[1]).ConfigureAwait(false);
+						case "!INPUT":
+							if (args.Length > 3) {
+								return await ResponseInput(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
+							}
+
+							if (args.Length > 2) {
+								return ResponseInput(steamID, args[1], args[2]);
+							}
+
+							goto default;
+						case "!IQ":
+							return await ResponseIdleQueue(steamID, args[1]).ConfigureAwait(false);
+						case "!IQADD":
+							if (args.Length > 2) {
+								return await ResponseIdleQueueAdd(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponseIdleQueueAdd(steamID, args[1]).ConfigureAwait(false);
+						case "!IQRM":
+							if (args.Length > 2) {
+								return await ResponseIdleQueueRemove(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponseIdleQueueRemove(steamID, args[1]).ConfigureAwait(false);
+						case "!LEAVE":
+							if (chatID != 0) {
+								return await ResponseLeave(steamID, args[1], chatID).ConfigureAwait(false);
+							}
+
+							goto default;
+						case "!LOOT":
+							return await ResponseLoot(steamID, args[1]).ConfigureAwait(false);
+						case "!LOOT^":
+							return await ResponseLootSwitch(steamID, args[1]).ConfigureAwait(false);
+						case "!NICKNAME":
+							if (args.Length > 2) {
+								return await ResponseNickname(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponseNickname(steamID, args[1]).ConfigureAwait(false);
+						case "!OA":
+							return await ResponseOwns(steamID, SharedInfo.ASF, args[1]).ConfigureAwait(false);
+						case "!OWNS":
+							if (args.Length > 2) {
+								return await ResponseOwns(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return (await ResponseOwns(steamID, args[1]).ConfigureAwait(false)).Response;
+						case "!PASSWORD":
+							return await ResponsePassword(steamID, args[1]).ConfigureAwait(false);
+						case "!PAUSE":
+							return await ResponsePause(steamID, args[1], true).ConfigureAwait(false);
+						case "!PAUSE~":
+							return await ResponsePause(steamID, args[1], false).ConfigureAwait(false);
+						case "!PAUSE&":
+							if (args.Length > 2) {
+								return await ResponsePause(steamID, args[1], true, args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponsePause(steamID, true, args[1]).ConfigureAwait(false);
+						case "!PLAY":
+							if (args.Length > 2) {
+								return await ResponsePlay(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponsePlay(steamID, args[1]).ConfigureAwait(false);
+						case "!R":
+						case "!REDEEM":
+							if (args.Length > 2) {
+								return await ResponseRedeem(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							return await ResponseRedeem(steamID, args[1]).ConfigureAwait(false);
+						case "!R^":
+						case "!REDEEM^":
+							if (args.Length > 3) {
+								return await ResponseAdvancedRedeem(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
+							}
+
+							if (args.Length > 2) {
+								return await ResponseAdvancedRedeem(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							goto default;
+						case "!REJOINCHAT":
+							return await ResponseRejoinChat(steamID, args[1]).ConfigureAwait(false);
+						case "!RESUME":
+							return await ResponseResume(steamID, args[1]).ConfigureAwait(false);
+						case "!START":
+							return await ResponseStart(steamID, args[1]).ConfigureAwait(false);
+						case "!STATUS":
+							return await ResponseStatus(steamID, args[1]).ConfigureAwait(false);
+						case "!STOP":
+							return await ResponseStop(steamID, args[1]).ConfigureAwait(false);
+						case "!TRANSFER":
+							if (args.Length > 3) {
+								return await ResponseTransfer(steamID, args[1], args[2], args[3]).ConfigureAwait(false);
+							}
+
+							if (args.Length > 2) {
+								return await ResponseTransfer(steamID, args[1], args[2]).ConfigureAwait(false);
+							}
+
+							goto default;
+						case "!UNPACK":
+							return await ResponseUnpackBoosters(steamID, args[1]).ConfigureAwait(false);
+						default:
+							return ResponseUnknown(steamID);
+					}
 			}
 		}
 
@@ -1133,7 +1149,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			string response = await Response(steamID, message).ConfigureAwait(false);
+			string response = await Response(steamID, message, chatID).ConfigureAwait(false);
 
 			// We respond with null when user is not authorized (and similar)
 			if (string.IsNullOrEmpty(response)) {
@@ -1245,17 +1261,17 @@ namespace ArchiSteamFarm {
 				SetUserInput(ASF.EUserInputType.Login, steamLogin);
 			}
 
-			if (!string.IsNullOrEmpty(BotConfig.SteamPassword) || (!requiresPassword && !string.IsNullOrEmpty(BotDatabase.LoginKey))) {
-				return true;
+			if (requiresPassword && string.IsNullOrEmpty(BotConfig.SteamPassword)) {
+				string steamPassword = Program.GetUserInput(ASF.EUserInputType.Password, BotName);
+				if (string.IsNullOrEmpty(steamPassword)) {
+					return false;
+				}
+
+				SetUserInput(ASF.EUserInputType.Password, steamPassword);
 			}
 
-			string steamPassword = Program.GetUserInput(ASF.EUserInputType.Password, BotName);
-			if (string.IsNullOrEmpty(steamPassword)) {
-				return false;
-			}
-
-			SetUserInput(ASF.EUserInputType.Password, steamPassword);
-			return true;
+			const bool result = true;
+			return result;
 		}
 
 		private void InitModules() {
@@ -1435,10 +1451,10 @@ namespace ArchiSteamFarm {
 				nickname = SteamFriends.GetPersonaName();
 			}
 
-			if (string.IsNullOrEmpty(nickname) || nickname.Equals("[unassigned]")) {
-				ArchiLogger.LogGenericError(string.Format(Strings.ErrorObjectIsNull, nameof(nickname)));
-				return;
-			}
+			// We should return here if [unassigned] is still our nickname at this point
+			// However, [unassigned] could be real nickname of the user regardless
+			// In this case, we can't tell a difference between real nickname and lack of it
+			// We must blindly assume that SK2 did the right thing and our timeout was enough
 
 			try {
 				await SteamFriends.SetPersonaState(EPersonaState.Online);
@@ -1466,7 +1482,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			if ((callback.ChatMsgType != EChatEntryType.ChatMsg) || string.IsNullOrEmpty(callback.Message)) {
+			if ((callback.ChatMsgType != EChatEntryType.ChatMsg) || string.IsNullOrWhiteSpace(callback.Message)) {
 				return;
 			}
 
@@ -1481,18 +1497,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			switch (callback.Message.ToUpperInvariant()) {
-				case "!LEAVE":
-					if (!IsMaster(callback.ChatterID)) {
-						break;
-					}
-
-					SteamFriends.LeaveChat(callback.ChatRoomID);
-					break;
-				default:
-					await HandleMessage(callback.ChatRoomID, callback.ChatterID, callback.Message).ConfigureAwait(false);
-					break;
-			}
+			await HandleMessage(callback.ChatRoomID, callback.ChatterID, callback.Message).ConfigureAwait(false);
 		}
 
 		private async void OnConnected(SteamClient.ConnectedCallback callback) {
@@ -1523,12 +1528,16 @@ namespace ArchiSteamFarm {
 				}
 			}
 
-			if (!InitLoginAndPassword(false)) {
+			// Decrypt login key if needed
+			string loginKey = BotDatabase.LoginKey;
+			if (!string.IsNullOrEmpty(loginKey) && (loginKey.Length > 19)) {
+				loginKey = CryptoHelper.Decrypt(BotConfig.PasswordFormat, loginKey);
+			}
+
+			if (!InitLoginAndPassword(string.IsNullOrEmpty(loginKey))) {
 				Stop();
 				return;
 			}
-
-			ArchiLogger.LogGenericInfo(Strings.BotLoggingIn);
 
 			string password = BotConfig.SteamPassword;
 			if (!string.IsNullOrEmpty(password)) {
@@ -1537,11 +1546,7 @@ namespace ArchiSteamFarm {
 				password = Regex.Replace(password, @"[^\u0000-\u007F]+", "");
 			}
 
-			// Decrypt login key if needed
-			string loginKey = BotDatabase.LoginKey;
-			if (!string.IsNullOrEmpty(loginKey) && (loginKey.Length > 19)) {
-				loginKey = CryptoHelper.Decrypt(BotConfig.PasswordFormat, loginKey);
-			}
+			ArchiLogger.LogGenericInfo(Strings.BotLoggingIn);
 
 			if (string.IsNullOrEmpty(TwoFactorCode) && HasMobileAuthenticator) {
 				// In this case, we can also use ASF 2FA for providing 2FA token, even if it's not required
@@ -1639,7 +1644,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			if ((callback.EntryType != EChatEntryType.ChatMsg) || string.IsNullOrEmpty(callback.Message)) {
+			if ((callback.EntryType != EChatEntryType.ChatMsg) || string.IsNullOrWhiteSpace(callback.Message)) {
 				return;
 			}
 
@@ -1653,6 +1658,19 @@ namespace ArchiSteamFarm {
 			}
 
 			await HandleMessage(callback.Sender, callback.Sender, callback.Message).ConfigureAwait(false);
+		}
+
+		private void OnFriendMsgEcho(SteamFriends.FriendMsgEchoCallback callback) {
+			if (callback?.Recipient == null) {
+				ArchiLogger.LogNullError(nameof(callback) + " || " + nameof(callback.Recipient));
+				return;
+			}
+
+			if ((callback.EntryType != EChatEntryType.ChatMsg) || string.IsNullOrWhiteSpace(callback.Message)) {
+				return;
+			}
+
+			ArchiLogger.LogGenericTrace(callback.Recipient.ConvertToUInt64() + ": " + callback.Message);
 		}
 
 		private async void OnFriendMsgHistory(SteamFriends.FriendMsgHistoryCallback callback) {
@@ -1739,6 +1757,13 @@ namespace ArchiSteamFarm {
 			// Return early if this update doesn't bring anything new
 			if (callback.LicenseList.Count == OwnedPackageIDs.Count) {
 				if (callback.LicenseList.All(license => OwnedPackageIDs.ContainsKey(license.PackageID))) {
+					// Wait 2 seconds for eventual PlayingSessionStateCallback or SharedLibraryLockStatusCallback
+					await Task.Delay(2000).ConfigureAwait(false);
+
+					if (!await CardsFarmer.Resume(false).ConfigureAwait(false)) {
+						await ResetGamesPlayed().ConfigureAwait(false);
+					}
+
 					return;
 				}
 			}
@@ -1756,6 +1781,10 @@ namespace ArchiSteamFarm {
 
 			// Wait a second for eventual PlayingSessionStateCallback or SharedLibraryLockStatusCallback
 			await Task.Delay(1000).ConfigureAwait(false);
+
+			if (CardsFarmer.Paused) {
+				await ResetGamesPlayed().ConfigureAwait(false);
+			}
 
 			await CardsFarmer.OnNewGameAdded().ConfigureAwait(false);
 		}
@@ -1882,13 +1911,6 @@ namespace ArchiSteamFarm {
 
 					Statistics?.OnLoggedOn().Forget();
 					Trading.OnNewTrade().Forget();
-
-					// Wait 2 seconds for eventual PlayingSessionStateCallback or SharedLibraryLockStatusCallback
-					await Task.Delay(2000).ConfigureAwait(false);
-
-					if (!await CardsFarmer.Resume(false).ConfigureAwait(false)) {
-						await ResetGamesPlayed().ConfigureAwait(false);
-					}
 
 					break;
 				case EResult.InvalidPassword:
@@ -2873,6 +2895,60 @@ namespace ArchiSteamFarm {
 			return responses.Count > 0 ? string.Join("", responses) : null;
 		}
 
+		private string ResponseLeave(ulong steamID, ulong chatID) {
+			if ((steamID == 0) || (chatID == 0)) {
+				ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(chatID));
+				return null;
+			}
+
+			if (!IsMaster(steamID)) {
+				return null;
+			}
+
+			if (!IsConnectedAndLoggedOn) {
+				return FormatBotResponse(Strings.BotNotConnected);
+			}
+
+			// Schedule the task after some time so user can receive response
+			Task.Run(async () => {
+				await Task.Delay(1000).ConfigureAwait(false);
+				SteamFriends.LeaveChat(chatID);
+			}).Forget();
+
+			return FormatBotResponse(Strings.Done);
+		}
+
+		private static async Task<string> ResponseLeave(ulong steamID, string botNames, ulong chatID) {
+			if ((steamID == 0) || string.IsNullOrEmpty(botNames) || (chatID == 0)) {
+				ASF.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(botNames) + " || " + nameof(chatID));
+				return null;
+			}
+
+			HashSet<Bot> bots = GetBots(botNames);
+			if ((bots == null) || (bots.Count == 0)) {
+				return IsOwner(steamID) ? FormatStaticResponse(string.Format(Strings.BotNotFound, botNames)) : null;
+			}
+
+			IEnumerable<Task<string>> tasks = bots.Select(bot => Task.Run(() => bot.ResponseLeave(steamID, chatID)));
+			ICollection<string> results;
+
+			switch (Program.GlobalConfig.OptimizationMode) {
+				case GlobalConfig.EOptimizationMode.MinMemoryUsage:
+					results = new List<string>(bots.Count);
+					foreach (Task<string> task in tasks) {
+						results.Add(await task.ConfigureAwait(false));
+					}
+
+					break;
+				default:
+					results = await Task.WhenAll(tasks).ConfigureAwait(false);
+					break;
+			}
+
+			List<string> responses = new List<string>(results.Where(result => !string.IsNullOrEmpty(result)));
+			return responses.Count > 0 ? string.Join("", responses) : null;
+		}
+
 		private async Task<string> ResponseLoot(ulong steamID) {
 			if (steamID == 0) {
 				ArchiLogger.LogNullError(nameof(steamID));
@@ -2909,7 +2985,7 @@ namespace ArchiSteamFarm {
 			}
 
 			try {
-				HashSet<Steam.Item> inventory = await ArchiWebHandler.GetMySteamInventory(true, BotConfig.LootableTypes).ConfigureAwait(false);
+				HashSet<Steam.Asset> inventory = await ArchiWebHandler.GetMySteamInventory(true, BotConfig.LootableTypes).ConfigureAwait(false);
 				if ((inventory == null) || (inventory.Count == 0)) {
 					return FormatBotResponse(string.Format(Strings.ErrorIsEmpty, nameof(inventory)));
 				}
@@ -3430,158 +3506,155 @@ namespace ArchiSteamFarm {
 			bool distribute = !redeemFlags.HasFlag(ERedeemFlags.SkipDistributing) && (redeemFlags.HasFlag(ERedeemFlags.ForceDistributing) || BotConfig.RedeemingPreferences.HasFlag(BotConfig.ERedeemingPreferences.Distributing));
 			bool keepMissingGames = !redeemFlags.HasFlag(ERedeemFlags.SkipKeepMissingGames) && (redeemFlags.HasFlag(ERedeemFlags.ForceKeepMissingGames) || BotConfig.RedeemingPreferences.HasFlag(BotConfig.ERedeemingPreferences.KeepMissingGames));
 
-			string[] keysList = keys.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-			keys = string.Join(Environment.NewLine, keysList);
+			HashSet<string> keysList = new HashSet<string>(keys.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries));
 
-			HashSet<string> unusedKeys = new HashSet<string>();
+			HashSet<string> unusedKeys = new HashSet<string>(keysList);
 			StringBuilder response = new StringBuilder();
 
-			using (StringReader reader = new StringReader(keys)) {
-				using (IEnumerator<Bot> enumerator = Bots.Where(bot => bot.Value.IsOperator(steamID)).OrderBy(bot => bot.Key).Select(bot => bot.Value).GetEnumerator()) {
-					string key = reader.ReadLine();
-					Bot currentBot = this;
-					while (!string.IsNullOrEmpty(key) && (currentBot != null)) {
-						if (redeemFlags.HasFlag(ERedeemFlags.Validate) && !IsValidCdKey(key)) {
-							key = reader.ReadLine(); // Next key
-							continue; // Keep current bot
-						}
+			using (HashSet<string>.Enumerator keysEnumerator = keysList.GetEnumerator()) {
+				string key = keysEnumerator.MoveNext() ? keysEnumerator.Current : null; // Initial key
 
-						unusedKeys.Add(key);
+				while (!string.IsNullOrEmpty(key)) {
+					using (IEnumerator<Bot> botsEnumerator = Bots.Where(bot => (bot.Value != this) && bot.Value.IsConnectedAndLoggedOn && bot.Value.IsOperator(steamID)).OrderBy(bot => bot.Key).Select(bot => bot.Value).GetEnumerator()) {
+						Bot currentBot = this;
+						while (!string.IsNullOrEmpty(key) && (currentBot != null)) {
+							if (redeemFlags.HasFlag(ERedeemFlags.Validate) && !IsValidCdKey(key)) {
+								unusedKeys.Remove(key); // This is not a valid key to begin with
+								key = keysEnumerator.MoveNext() ? keysEnumerator.Current : null; // Next key
+								continue; // Keep current bot
+							}
 
-						if ((redeemFlags.HasFlag(ERedeemFlags.SkipInitial) && (currentBot == this)) || !currentBot.IsConnectedAndLoggedOn) {
-							currentBot = null; // Either bot will be changed, or loop aborted
-						} else {
-							await LimitGiftsRequestsAsync().ConfigureAwait(false);
-
-							ArchiHandler.PurchaseResponseCallback result = await currentBot.ArchiHandler.RedeemKey(key).ConfigureAwait(false);
-							if (result == null) {
-								response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, EPurchaseResultDetail.Timeout), currentBot.BotName));
+							if (redeemFlags.HasFlag(ERedeemFlags.SkipInitial) && (currentBot == this)) {
 								currentBot = null; // Either bot will be changed, or loop aborted
 							} else {
-								switch (result.PurchaseResultDetail) {
-									case EPurchaseResultDetail.BadActivationCode:
-									case EPurchaseResultDetail.CannotRedeemCodeFromClient: // Steam wallet code
-									case EPurchaseResultDetail.DuplicateActivationCode:
-									case EPurchaseResultDetail.NoDetail: // OK
-									case EPurchaseResultDetail.Timeout:
-										if (result.PurchaseResultDetail == EPurchaseResultDetail.CannotRedeemCodeFromClient) {
-											// If it's a wallet code, try to redeem it, and forward the result
-											// The result is final, there is no place for forwarding
-											(EResult Result, EPurchaseResultDetail? PurchaseResult)? walletResult = await currentBot.ArchiWebHandler.RedeemWalletKey(key).ConfigureAwait(false);
-											if (walletResult != null) {
-												result.Result = walletResult.Value.Result;
-												result.PurchaseResultDetail = walletResult.Value.PurchaseResult.GetValueOrDefault(walletResult.Value.Result == EResult.OK ? EPurchaseResultDetail.NoDetail : EPurchaseResultDetail.CannotRedeemCodeFromClient);
+								await LimitGiftsRequestsAsync().ConfigureAwait(false);
+
+								ArchiHandler.PurchaseResponseCallback result = await currentBot.ArchiHandler.RedeemKey(key).ConfigureAwait(false);
+								if (result == null) {
+									response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, EPurchaseResultDetail.Timeout), currentBot.BotName));
+									currentBot = null; // Either bot will be changed, or loop aborted
+								} else {
+									switch (result.PurchaseResultDetail) {
+										case EPurchaseResultDetail.BadActivationCode:
+										case EPurchaseResultDetail.CannotRedeemCodeFromClient: // Steam wallet code
+										case EPurchaseResultDetail.DuplicateActivationCode:
+										case EPurchaseResultDetail.NoDetail: // OK
+										case EPurchaseResultDetail.Timeout:
+											if (result.PurchaseResultDetail == EPurchaseResultDetail.CannotRedeemCodeFromClient) {
+												// If it's a wallet code, try to redeem it, and forward the result
+												// The result is final, there is no place for forwarding
+												(EResult Result, EPurchaseResultDetail? PurchaseResult)? walletResult = await currentBot.ArchiWebHandler.RedeemWalletKey(key).ConfigureAwait(false);
+												if (walletResult != null) {
+													result.Result = walletResult.Value.Result;
+													result.PurchaseResultDetail = walletResult.Value.PurchaseResult.GetValueOrDefault(walletResult.Value.Result == EResult.OK ? EPurchaseResultDetail.NoDetail : EPurchaseResultDetail.CannotRedeemCodeFromClient);
+												} else {
+													result.Result = EResult.Timeout;
+													result.PurchaseResultDetail = EPurchaseResultDetail.Timeout;
+												}
+											}
+
+											if ((result.Items != null) && (result.Items.Count > 0)) {
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
 											} else {
-												result.Result = EResult.Timeout;
-												result.PurchaseResultDetail = EPurchaseResultDetail.Timeout;
-											}
-										}
-
-										if ((result.Items != null) && (result.Items.Count > 0)) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
-										} else {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
-										}
-
-										if ((result.Result != EResult.Timeout) && (result.PurchaseResultDetail != EPurchaseResultDetail.Timeout)) {
-											unusedKeys.Remove(key);
-										}
-
-										key = reader.ReadLine(); // Next key
-
-										if (result.PurchaseResultDetail == EPurchaseResultDetail.NoDetail) {
-											break; // Next bot (if needed)
-										}
-
-										continue; // Keep current bot
-									case EPurchaseResultDetail.AccountLocked:
-									case EPurchaseResultDetail.AlreadyPurchased:
-									case EPurchaseResultDetail.DoesNotOwnRequiredApp:
-									case EPurchaseResultDetail.RateLimited:
-									case EPurchaseResultDetail.RestrictedCountry:
-										if ((result.Items != null) && (result.Items.Count > 0)) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
-										} else {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
-										}
-
-										if (!forward || (keepMissingGames && (result.PurchaseResultDetail != EPurchaseResultDetail.AlreadyPurchased))) {
-											key = reader.ReadLine(); // Next key
-											break; // Next bot (if needed)
-										}
-
-										if (distribute) {
-											break; // Next bot, without changing key
-										}
-
-										Dictionary<uint, string> items = result.Items ?? new Dictionary<uint, string>();
-
-										Bot thisBot = this;
-
-										bool alreadyHandled = false;
-										foreach (Bot bot in Bots.Where(bot => (bot.Value != currentBot) && (!redeemFlags.HasFlag(ERedeemFlags.SkipInitial) || (bot.Value != thisBot)) && bot.Value.IsConnectedAndLoggedOn && bot.Value.IsOperator(steamID) && ((items.Count == 0) || items.Keys.Any(packageID => !bot.Value.OwnedPackageIDs.ContainsKey(packageID)))).OrderBy(bot => bot.Key).Select(bot => bot.Value)) {
-											await LimitGiftsRequestsAsync().ConfigureAwait(false);
-
-											ArchiHandler.PurchaseResponseCallback otherResult = await bot.ArchiHandler.RedeemKey(key).ConfigureAwait(false);
-											if (otherResult == null) {
-												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, EResult.Timeout + "/" + EPurchaseResultDetail.Timeout), bot.BotName));
-												continue;
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
 											}
 
-											switch (otherResult.PurchaseResultDetail) {
-												case EPurchaseResultDetail.BadActivationCode:
-												case EPurchaseResultDetail.DuplicateActivationCode:
-												case EPurchaseResultDetail.NoDetail: // OK
-													alreadyHandled = true; // This key is already handled, as we either redeemed it or we're sure it's dupe/invalid
-													unusedKeys.Remove(key);
+											if ((result.Result != EResult.Timeout) && (result.PurchaseResultDetail != EPurchaseResultDetail.Timeout)) {
+												unusedKeys.Remove(key);
+											}
+
+											key = keysEnumerator.MoveNext() ? keysEnumerator.Current : null; // Next key
+
+											if (result.PurchaseResultDetail == EPurchaseResultDetail.NoDetail) {
+												break; // Next bot (if needed)
+											}
+
+											continue; // Keep current bot
+										case EPurchaseResultDetail.AccountLocked:
+										case EPurchaseResultDetail.AlreadyPurchased:
+										case EPurchaseResultDetail.DoesNotOwnRequiredApp:
+										case EPurchaseResultDetail.RateLimited:
+										case EPurchaseResultDetail.RestrictedCountry:
+											if ((result.Items != null) && (result.Items.Count > 0)) {
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
+											} else {
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
+											}
+
+											if (!forward || (keepMissingGames && (result.PurchaseResultDetail != EPurchaseResultDetail.AlreadyPurchased))) {
+												key = keysEnumerator.MoveNext() ? keysEnumerator.Current : null; // Next key
+												break; // Next bot (if needed)
+											}
+
+											if (distribute) {
+												break; // Next bot, without changing key
+											}
+
+											Dictionary<uint, string> items = result.Items ?? new Dictionary<uint, string>();
+
+											bool alreadyHandled = false;
+											foreach (Bot innerBot in Bots.Where(bot => (bot.Value != currentBot) && (!redeemFlags.HasFlag(ERedeemFlags.SkipInitial) || (bot.Value != this)) && bot.Value.IsConnectedAndLoggedOn && bot.Value.IsOperator(steamID) && ((items.Count == 0) || items.Keys.Any(packageID => !bot.Value.OwnedPackageIDs.ContainsKey(packageID)))).OrderBy(bot => bot.Key).Select(bot => bot.Value)) {
+												await LimitGiftsRequestsAsync().ConfigureAwait(false);
+
+												ArchiHandler.PurchaseResponseCallback otherResult = await innerBot.ArchiHandler.RedeemKey(key).ConfigureAwait(false);
+												if (otherResult == null) {
+													response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, EResult.Timeout + "/" + EPurchaseResultDetail.Timeout), innerBot.BotName));
+													continue;
+												}
+
+												switch (otherResult.PurchaseResultDetail) {
+													case EPurchaseResultDetail.BadActivationCode:
+													case EPurchaseResultDetail.DuplicateActivationCode:
+													case EPurchaseResultDetail.NoDetail: // OK
+														alreadyHandled = true; // This key is already handled, as we either redeemed it or we're sure it's dupe/invalid
+														unusedKeys.Remove(key);
+														break;
+												}
+
+												if ((otherResult.Items != null) && (otherResult.Items.Count > 0)) {
+													response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, otherResult.Result + "/" + otherResult.PurchaseResultDetail, string.Join("", otherResult.Items)), innerBot.BotName));
+												} else {
+													response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, otherResult.Result + "/" + otherResult.PurchaseResultDetail), innerBot.BotName));
+												}
+
+												if (alreadyHandled) {
 													break;
+												}
+
+												if (otherResult.Items == null) {
+													continue;
+												}
+
+												foreach (KeyValuePair<uint, string> item in otherResult.Items) {
+													items[item.Key] = item.Value;
+												}
 											}
 
-											if ((otherResult.Items != null) && (otherResult.Items.Count > 0)) {
-												response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, otherResult.Result + "/" + otherResult.PurchaseResultDetail, string.Join("", otherResult.Items)), bot.BotName));
+											key = keysEnumerator.MoveNext() ? keysEnumerator.Current : null; // Next key
+											break; // Next bot (if needed)
+										default:
+											ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(result.PurchaseResultDetail), result.PurchaseResultDetail));
+
+											if ((result.Items != null) && (result.Items.Count > 0)) {
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
 											} else {
-												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, otherResult.Result + "/" + otherResult.PurchaseResultDetail), bot.BotName));
+												response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
 											}
 
-											if (alreadyHandled) {
-												break;
-											}
+											unusedKeys.Remove(key);
 
-											if (otherResult.Items == null) {
-												continue;
-											}
-
-											foreach (KeyValuePair<uint, string> item in otherResult.Items) {
-												items[item.Key] = item.Value;
-											}
-										}
-
-										key = reader.ReadLine(); // Next key
-										break; // Next bot (if needed)
-									default:
-										ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(result.PurchaseResultDetail), result.PurchaseResultDetail));
-
-										if ((result.Items != null) && (result.Items.Count > 0)) {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeemWithItems, key, result.Result + "/" + result.PurchaseResultDetail, string.Join("", result.Items)), currentBot.BotName));
-										} else {
-											response.Append(FormatBotResponse(string.Format(Strings.BotRedeem, key, result.Result + "/" + result.PurchaseResultDetail), currentBot.BotName));
-										}
-
-										unusedKeys.Remove(key);
-
-										key = reader.ReadLine(); // Next key
-										break; // Next bot (if needed)
+											key = keysEnumerator.MoveNext() ? keysEnumerator.Current : null; // Next key
+											break; // Next bot (if needed)
+									}
 								}
 							}
-						}
 
-						if (!distribute && !redeemFlags.HasFlag(ERedeemFlags.SkipInitial)) {
-							continue;
-						}
+							if (!distribute && !redeemFlags.HasFlag(ERedeemFlags.SkipInitial)) {
+								continue;
+							}
 
-						do {
-							currentBot = enumerator.MoveNext() ? enumerator.Current : null;
-						} while ((currentBot == this) || (currentBot?.IsConnectedAndLoggedOn == false));
+							currentBot = botsEnumerator.MoveNext() ? botsEnumerator.Current : null;
+						}
 					}
 				}
 			}
@@ -4009,45 +4082,45 @@ namespace ArchiSteamFarm {
 				return FormatBotResponse(Strings.BotLootingYourself);
 			}
 
-			HashSet<Steam.Item.EType> transferTypes = new HashSet<Steam.Item.EType>();
+			HashSet<Steam.Asset.EType> transferTypes = new HashSet<Steam.Asset.EType>();
 
 			string[] modes = mode.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
 			foreach (string singleMode in modes) {
 				switch (singleMode.ToUpper()) {
 					case "A":
 					case "ALL":
-						foreach (Steam.Item.EType type in Enum.GetValues(typeof(Steam.Item.EType))) {
+						foreach (Steam.Asset.EType type in Enum.GetValues(typeof(Steam.Asset.EType))) {
 							transferTypes.Add(type);
 						}
 
 						break;
 					case "BG":
 					case "BACKGROUND":
-						transferTypes.Add(Steam.Item.EType.ProfileBackground);
+						transferTypes.Add(Steam.Asset.EType.ProfileBackground);
 						break;
 					case "BO":
 					case "BOOSTER":
-						transferTypes.Add(Steam.Item.EType.BoosterPack);
+						transferTypes.Add(Steam.Asset.EType.BoosterPack);
 						break;
 					case "C":
 					case "CARD":
-						transferTypes.Add(Steam.Item.EType.TradingCard);
+						transferTypes.Add(Steam.Asset.EType.TradingCard);
 						break;
 					case "E":
 					case "EMOTICON":
-						transferTypes.Add(Steam.Item.EType.Emoticon);
+						transferTypes.Add(Steam.Asset.EType.Emoticon);
 						break;
 					case "F":
 					case "FOIL":
-						transferTypes.Add(Steam.Item.EType.FoilTradingCard);
+						transferTypes.Add(Steam.Asset.EType.FoilTradingCard);
 						break;
 					case "G":
 					case "GEMS":
-						transferTypes.Add(Steam.Item.EType.SteamGems);
+						transferTypes.Add(Steam.Asset.EType.SteamGems);
 						break;
 					case "U":
 					case "UNKNOWN":
-						transferTypes.Add(Steam.Item.EType.Unknown);
+						transferTypes.Add(Steam.Asset.EType.Unknown);
 						break;
 					default:
 						return FormatBotResponse(string.Format(Strings.ErrorIsInvalid, mode));
@@ -4059,7 +4132,7 @@ namespace ArchiSteamFarm {
 			}
 
 			try {
-				HashSet<Steam.Item> inventory = await ArchiWebHandler.GetMySteamInventory(true, transferTypes).ConfigureAwait(false);
+				HashSet<Steam.Asset> inventory = await ArchiWebHandler.GetMySteamInventory(true, transferTypes).ConfigureAwait(false);
 				if ((inventory == null) || (inventory.Count == 0)) {
 					return FormatBotResponse(string.Format(Strings.ErrorIsEmpty, nameof(inventory)));
 				}
@@ -4149,7 +4222,7 @@ namespace ArchiSteamFarm {
 				return FormatBotResponse(Strings.BotNotConnected);
 			}
 
-			HashSet<Steam.Item> inventory = await ArchiWebHandler.GetMySteamInventory(false, new HashSet<Steam.Item.EType> { Steam.Item.EType.BoosterPack }).ConfigureAwait(false);
+			HashSet<Steam.Asset> inventory = await ArchiWebHandler.GetMySteamInventory(false, new HashSet<Steam.Asset.EType> { Steam.Asset.EType.BoosterPack }).ConfigureAwait(false);
 			if ((inventory == null) || (inventory.Count == 0)) {
 				return FormatBotResponse(string.Format(Strings.ErrorIsEmpty, nameof(inventory)));
 			}
@@ -4237,6 +4310,8 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
+			ArchiLogger.LogGenericTrace(steamID + "/" + SteamID + ": " + message);
+
 			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 2) {
 				if (i > 0) {
 					await Task.Delay(CallbackSleep).ConfigureAwait(false);
@@ -4256,6 +4331,8 @@ namespace ArchiSteamFarm {
 			if (!IsConnectedAndLoggedOn) {
 				return;
 			}
+
+			ArchiLogger.LogGenericTrace(steamID + "/" + SteamID + ": " + message);
 
 			for (int i = 0; i < message.Length; i += MaxSteamMessageLength - 2) {
 				if (i > 0) {
@@ -4305,7 +4382,7 @@ namespace ArchiSteamFarm {
 					TwoFactorCode = inputValue;
 					break;
 				default:
-					ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(inputType), inputType));
+					ASF.ArchiLogger.LogGenericError(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(inputType), inputType));
 					break;
 			}
 		}

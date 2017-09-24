@@ -33,8 +33,6 @@ using Newtonsoft.Json;
 
 namespace ArchiSteamFarm {
 	[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
-	[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
-	[SuppressMessage("ReSharper", "ConvertToConstant.Global")]
 	internal sealed class BotConfig {
 #pragma warning disable 649
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -96,15 +94,15 @@ namespace ArchiSteamFarm {
 #pragma warning restore 649
 
 		[JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace, Required = Required.DisallowNull)]
-		internal readonly HashSet<Steam.Item.EType> LootableTypes = new HashSet<Steam.Item.EType> {
-			Steam.Item.EType.BoosterPack,
-			Steam.Item.EType.FoilTradingCard,
-			Steam.Item.EType.TradingCard
+		internal readonly HashSet<Steam.Asset.EType> LootableTypes = new HashSet<Steam.Asset.EType> {
+			Steam.Asset.EType.BoosterPack,
+			Steam.Asset.EType.FoilTradingCard,
+			Steam.Asset.EType.TradingCard
 		};
 
 		[JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace, Required = Required.DisallowNull)]
-		internal readonly HashSet<Steam.Item.EType> MatchableTypes = new HashSet<Steam.Item.EType> {
-			Steam.Item.EType.TradingCard
+		internal readonly HashSet<Steam.Asset.EType> MatchableTypes = new HashSet<Steam.Asset.EType> {
+			Steam.Asset.EType.TradingCard
 		};
 
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -138,7 +136,6 @@ namespace ArchiSteamFarm {
 		internal readonly string SteamTradeToken;
 #pragma warning restore 649
 
-		[SuppressMessage("ReSharper", "CollectionNeverUpdated.Global")]
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly Dictionary<ulong, EPermission> SteamUserPermissions = new Dictionary<ulong, EPermission>();
 
@@ -172,7 +169,6 @@ namespace ArchiSteamFarm {
 		// This constructor is used only by deserializer
 		private BotConfig() { }
 
-		// Functions below are used for skipping serialization of sensitive fields in API response
 		public bool ShouldSerializeSteamLogin() => false;
 		public bool ShouldSerializeSteamParentalPIN() => false;
 		public bool ShouldSerializeSteamPassword() => false;
