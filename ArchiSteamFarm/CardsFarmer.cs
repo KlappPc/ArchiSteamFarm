@@ -75,6 +75,10 @@ namespace ArchiSteamFarm {
 		private bool ShouldResumeFarming = true;
 		private bool StickyPause;
 
+		public HashSet<uint> gamesWithBadgeReady = new HashSet<uint>();
+		public HashSet<uint> gamesWithNoInfo = new HashSet<uint>();
+		public static ConcurrentDictionary<uint, ushort> amountOfCardsPerGame = new ConcurrentDictionary<uint, ushort>();
+
 		internal CardsFarmer(Bot bot) {
 			Bot = bot ?? throw new ArgumentNullException(nameof(bot));
 
@@ -330,7 +334,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			HtmlNodeCollection htmlNodes = htmlDocument.DocumentNode.SelectNodes("//div[@class='badge_row_inner']");
+			HtmlNodeCollection htmlNodes = htmlDocument.DocumentNode.SelectNodes("//div[@class='badge_row is_link']");
 			if (htmlNodes == null) {
 				// No eligible badges whatsoever
 				return;
@@ -343,6 +347,14 @@ namespace ArchiSteamFarm {
 
 				HtmlNode appIDNode = statsNode?.SelectSingleNode(".//div[@class='card_drop_info_dialog']");
 				if (appIDNode == null) {
+					// card badge whithout card drop dialog.
+					appIDNode = htmlNode.SelectSingleNode(".//a[@class='badge_row_overlay']");
+					if (appIDNode != null) {
+						Match badgeMatch = Regex.Match(appIDNode.GetAttributeValue("href", ""), @"/gamecards/\d+");
+						if (badgeMatch.Success && uint.TryParse(badgeMatch.Value.Substring(11, badgeMatch.Value.Length - 11), out uint appid)) {
+							gamesWithNoInfo.Add(appid);
+						}
+					}
 					// It's just a badge, nothing more
 					continue;
 				}
@@ -365,6 +377,43 @@ namespace ArchiSteamFarm {
 					Bot.ArchiLogger.LogNullError(nameof(appID));
 					continue;
 				}
+
+				//searching for amount of cards needed for that badge
+				do {
+					if (amountOfCardsPerGame.ContainsKey(appID)) {
+						break;
+					}
+					HtmlNode badgeInfo = htmlNode.SelectSingleNode(".//div[@class='badge_progress_info']");
+					if (badgeInfo == null) {
+						Bot.ArchiLogger.LogNullError(nameof(badgeInfo));
+						break;
+					}
+					// "x of y cards collected"
+					string badgeText = badgeInfo.InnerText;
+					if (string.IsNullOrEmpty(badgeText)) {
+						Bot.ArchiLogger.LogNullError(nameof(badgeText));
+						break;
+					}
+					if (badgeText.Contains("Ready")) {
+						gamesWithBadgeReady.Add(appID);
+						break;
+					}
+					ushort maxCards = 0;
+					Match badgeMatch = Regex.Match(badgeText, @"\d+");
+
+					// This might fail for Level 5 or level 1-4 but no cards in inventory or special badges.
+					if (!badgeMatch.Success || !(badgeMatch = badgeMatch.NextMatch()).Success) {
+						gamesWithNoInfo.Add(appID);
+						break;
+					}
+					if (!ushort.TryParse(badgeMatch.Value, out maxCards) || (maxCards == 0)) {
+						Bot.ArchiLogger.LogNullError(nameof(maxCards));
+						gamesWithNoInfo.Add(appID);
+						break;
+					}
+					amountOfCardsPerGame.GetOrAdd(appID, maxCards);
+				} while (false);
+				//end searching
 
 				if (GlobalConfig.GamesBlacklist.Contains(appID) || GlobalConfig.SalesBlacklist.Contains(appID) || Program.GlobalConfig.Blacklist.Contains(appID)) {
 					// We have this appID blacklisted, so skip it
@@ -889,6 +938,15 @@ namespace ArchiSteamFarm {
 
 			ShouldResumeFarming = true;
 			SortGamesToFarm();
+
+			using (System.IO.StreamWriter file = new System.IO.StreamWriter(Bot.SteamID + ".txt")) {
+				foreach (var entry in amountOfCardsPerGame)
+					file.WriteLine("{0};{1}", entry.Key, entry.Value);
+				foreach (var entry in gamesWithBadgeReady)
+					file.WriteLine("{0};Ready", entry);
+				foreach (var entry in gamesWithNoInfo)
+					file.WriteLine("{0};Failed", entry);
+			}
 			return true;
 		}
 

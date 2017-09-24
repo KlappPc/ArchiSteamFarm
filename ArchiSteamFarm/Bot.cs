@@ -3941,6 +3941,45 @@ namespace ArchiSteamFarm {
 		}
 
 		private async Task<string> ResponseTransfer(ulong steamID, string mode, string botNameTo) {
+			foreach (Bot bot in Bots.OrderBy(bot => bot.Key).Select(bot => bot.Value)) {
+				bot.CardsFarmer.gamesWithBadgeReady.RemoveWhere(CardsFarmer.amountOfCardsPerGame.ContainsKey);
+				if (bot.CardsFarmer.gamesWithBadgeReady.Count>0) {
+					HashSet<Steam.Item.EType> transferTypes2 = new HashSet<Steam.Item.EType>();
+					transferTypes2.Add(Steam.Item.EType.TradingCard);
+					HashSet<Steam.Item> inventory2 = await ArchiWebHandler.GetMySteamInventory(true, transferTypes2).ConfigureAwait(true);
+					HashSet<ulong> added = new HashSet<ulong>();
+					ushort cards = 0;
+					foreach (uint appid in bot.CardsFarmer.gamesWithBadgeReady){
+
+						HashSet<Steam.Item> inventory = new HashSet<Steam.Item>(inventory2);
+						inventory.RemoveWhere(item => appid != item.RealAppID);
+						ASF.ArchiLogger.LogGenericWarning("inventory=" + inventory.Count);
+						foreach (Steam.Item item in inventory) {
+							if (added.Contains(item.ClassID)) continue; //card already counted
+							ASF.ArchiLogger.LogGenericWarning("cards=" + cards);
+							cards = (ushort) (cards + 1);
+							ASF.ArchiLogger.LogGenericWarning("cardsa=" + cards);
+							added.Add(item.ClassID);
+						}
+						CardsFarmer.amountOfCardsPerGame.TryAdd(appid, cards);
+						added.Clear();
+						cards = 0;
+					}
+				}
+				bot.CardsFarmer.gamesWithBadgeReady.RemoveWhere(CardsFarmer.amountOfCardsPerGame.ContainsKey);
+				bot.CardsFarmer.gamesWithNoInfo.RemoveWhere(CardsFarmer.amountOfCardsPerGame.ContainsKey);
+				using (System.IO.StreamWriter file = new System.IO.StreamWriter(bot.SteamID + "_2.txt")) {
+					foreach (var entry in bot.CardsFarmer.gamesWithBadgeReady)
+						file.WriteLine("{0};Ready", entry);
+					foreach (var entry in bot.CardsFarmer.gamesWithNoInfo)
+						file.WriteLine("{0};Failed", entry);
+				}
+			}
+			using (System.IO.StreamWriter file = new System.IO.StreamWriter("final.txt")) {
+				foreach (var entry in CardsFarmer.amountOfCardsPerGame)
+					file.WriteLine("{0};{1}", entry.Key, entry.Value);
+			}
+
 			if ((steamID == 0) || string.IsNullOrEmpty(botNameTo) || string.IsNullOrEmpty(mode)) {
 				ASF.ArchiLogger.LogNullError(nameof(steamID) + " || " + nameof(mode) + " || " + nameof(botNameTo));
 				return null;
