@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -56,9 +53,7 @@ namespace ArchiSteamFarm {
 				MaxConnectionsPerServer = MaxConnections
 			};
 
-			HttpClient = new HttpClient(httpClientHandler) {
-				Timeout = TimeSpan.FromSeconds(extendedTimeout ? ExtendedTimeoutMultiplier * Program.GlobalConfig.ConnectionTimeout : Program.GlobalConfig.ConnectionTimeout)
-			};
+			HttpClient = new HttpClient(httpClientHandler) { Timeout = TimeSpan.FromSeconds(extendedTimeout ? ExtendedTimeoutMultiplier * Program.GlobalConfig.ConnectionTimeout : Program.GlobalConfig.ConnectionTimeout) };
 
 			// Most web services expect that UserAgent is set, so we declare it globally
 			HttpClient.DefaultRequestHeaders.UserAgent.ParseAdd(SharedInfo.AssemblyName + "/" + SharedInfo.Version);
@@ -216,7 +211,7 @@ namespace ArchiSteamFarm {
 			return null;
 		}
 
-		internal async Task<bool> UrlPost(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+		internal async Task<bool> UrlPost(string request, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
 				ArchiLogger.LogNullError(nameof(request));
 				return false;
@@ -227,7 +222,7 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal async Task<bool> UrlPostRetry(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+		internal async Task<bool> UrlPostRetry(string request, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
 				ArchiLogger.LogNullError(nameof(request));
 				return false;
@@ -247,7 +242,7 @@ namespace ArchiSteamFarm {
 			return false;
 		}
 
-		internal async Task<HtmlDocument> UrlPostToHtmlDocumentRetry(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+		internal async Task<HtmlDocument> UrlPostToHtmlDocumentRetry(string request, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
 				ArchiLogger.LogNullError(nameof(request));
 				return null;
@@ -257,7 +252,7 @@ namespace ArchiSteamFarm {
 			return !string.IsNullOrEmpty(content) ? StringToHtmlDocument(content) : null;
 		}
 
-		internal async Task<T> UrlPostToJsonResultRetry<T>(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+		internal async Task<T> UrlPostToJsonResultRetry<T>(string request, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
 				ArchiLogger.LogNullError(nameof(request));
 				return default;
@@ -405,7 +400,7 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		private async Task<string> UrlPostToContent(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+		private async Task<string> UrlPostToContent(string request, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
 				ArchiLogger.LogNullError(nameof(request));
 				return null;
@@ -420,7 +415,7 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		private async Task<string> UrlPostToContentRetry(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+		private async Task<string> UrlPostToContentRetry(string request, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (string.IsNullOrEmpty(request)) {
 				ArchiLogger.LogNullError(nameof(request));
 				return null;
@@ -440,7 +435,7 @@ namespace ArchiSteamFarm {
 			return null;
 		}
 
-		private async Task<HttpResponseMessage> UrlPostToResponse(string request, ICollection<KeyValuePair<string, string>> data = null, string referer = null) {
+		private async Task<HttpResponseMessage> UrlPostToResponse(string request, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null) {
 			if (!string.IsNullOrEmpty(request)) {
 				return await UrlRequest(new Uri(request), HttpMethod.Post, data, referer).ConfigureAwait(false);
 			}
@@ -449,7 +444,7 @@ namespace ArchiSteamFarm {
 			return null;
 		}
 
-		private async Task<HttpResponseMessage> UrlRequest(Uri requestUri, HttpMethod httpMethod, ICollection<KeyValuePair<string, string>> data = null, string referer = null, byte maxRedirections = MaxTries) {
+		private async Task<HttpResponseMessage> UrlRequest(Uri requestUri, HttpMethod httpMethod, IReadOnlyCollection<KeyValuePair<string, string>> data = null, string referer = null, byte maxRedirections = MaxTries) {
 			if ((requestUri == null) || (httpMethod == null)) {
 				ArchiLogger.LogNullError(nameof(requestUri) + " || " + nameof(httpMethod));
 				return null;
@@ -473,11 +468,7 @@ namespace ArchiSteamFarm {
 				try {
 					responseMessage = await HttpClient.SendAsync(requestMessage).ConfigureAwait(false);
 				} catch (Exception e) {
-					// This exception is really common, don't bother with it unless debug mode is enabled
-					if (Debugging.IsUserDebugging) {
-						ArchiLogger.LogGenericDebugException(e);
-					}
-
+					ArchiLogger.LogGenericDebuggingException(e);
 					return null;
 				}
 			}

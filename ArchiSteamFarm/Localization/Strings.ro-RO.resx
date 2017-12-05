@@ -189,10 +189,6 @@ StackTrace:
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>S-a primit o cerere de date introduse de utilizator, dar procesul se execută în modul fără cap (serviciu)!</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>Se refuză gestionarea cererii, deoarece SteamOwnerID nu este setat!</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Ieșire...</value>
   </data>
@@ -505,9 +501,7 @@ StackTrace:
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Colectarea este dezactivată temporar!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Nu poți să colectezi de la tine!</value>
-  </data>
+  
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Acest bot nu are ASF 2FA activat! Ai uitat să imporți autentificatorul ca ASF 2FA?</value>
   </data>

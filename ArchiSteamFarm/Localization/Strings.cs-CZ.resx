@@ -189,10 +189,6 @@ StackTrace:
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Obdržen vstup od uživatele, ale proces běží v automatickém režimu.</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>Požadavek byl zamítnut, protože není nastaven identifikátor SteamOwnerID.</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Ukončení...</value>
   </data>
@@ -505,9 +501,7 @@ StackTrace:
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Zasílání je dočasně zakázáno.</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Nelze zasílat sám sobě.</value>
-  </data>
+  
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Tento bot nemá povoleno ASF 2FA. Nezapomněli jste svůj autentifikátor naimportovat jeho ASF 2FA?</value>
   </data>

@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -35,6 +32,9 @@ namespace ArchiSteamFarm {
 		private readonly ConcurrentHashSet<ulong> BlacklistedFromTradesSteamIDs = new ConcurrentHashSet<ulong>();
 
 		private readonly SemaphoreSlim FileSemaphore = new SemaphoreSlim(1, 1);
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		private readonly ConcurrentHashSet<uint> IdlingBlacklistedAppIDs = new ConcurrentHashSet<uint>();
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		private readonly ConcurrentHashSet<uint> IdlingPriorityAppIDs = new ConcurrentHashSet<uint>();
@@ -68,7 +68,7 @@ namespace ArchiSteamFarm {
 			MobileAuthenticator?.Dispose();
 		}
 
-		internal async Task AddBlacklistedFromTradesSteamIDs(HashSet<ulong> steamIDs) {
+		internal async Task AddBlacklistedFromTradesSteamIDs(IReadOnlyCollection<ulong> steamIDs) {
 			if ((steamIDs == null) || (steamIDs.Count == 0)) {
 				ASF.ArchiLogger.LogNullError(nameof(steamIDs));
 				return;
@@ -79,7 +79,18 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal async Task AddIdlingPriorityAppIDs(HashSet<uint> appIDs) {
+		internal async Task AddIdlingBlacklistedAppIDs(IReadOnlyCollection<uint> appIDs) {
+			if ((appIDs == null) || (appIDs.Count == 0)) {
+				ASF.ArchiLogger.LogNullError(nameof(appIDs));
+				return;
+			}
+
+			if (IdlingBlacklistedAppIDs.AddRange(appIDs)) {
+				await Save().ConfigureAwait(false);
+			}
+		}
+
+		internal async Task AddIdlingPriorityAppIDs(IReadOnlyCollection<uint> appIDs) {
 			if ((appIDs == null) || (appIDs.Count == 0)) {
 				ASF.ArchiLogger.LogNullError(nameof(appIDs));
 				return;
@@ -101,8 +112,19 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal IEnumerable<ulong> GetBlacklistedFromTradesSteamIDs() => BlacklistedFromTradesSteamIDs;
-		internal IEnumerable<uint> GetIdlingPriorityAppIDs() => IdlingPriorityAppIDs;
+		internal IReadOnlyCollection<ulong> GetBlacklistedFromTradesSteamIDs() => BlacklistedFromTradesSteamIDs;
+		internal IReadOnlyCollection<uint> GetIdlingBlacklistedAppIDs() => IdlingBlacklistedAppIDs;
+		internal IReadOnlyCollection<uint> GetIdlingPriorityAppIDs() => IdlingPriorityAppIDs;
+
+		internal bool IsBlacklistedFromIdling(uint appID) {
+			if (appID == 0) {
+				ASF.ArchiLogger.LogNullError(nameof(appID));
+				return false;
+			}
+
+			bool result = IdlingBlacklistedAppIDs.Contains(appID);
+			return result;
+		}
 
 		internal bool IsBlacklistedFromTrades(ulong steamID) {
 			if (steamID == 0) {
@@ -152,7 +174,7 @@ namespace ArchiSteamFarm {
 			return botDatabase;
 		}
 
-		internal async Task RemoveBlacklistedFromTradesSteamIDs(HashSet<ulong> steamIDs) {
+		internal async Task RemoveBlacklistedFromTradesSteamIDs(IReadOnlyCollection<ulong> steamIDs) {
 			if ((steamIDs == null) || (steamIDs.Count == 0)) {
 				ASF.ArchiLogger.LogNullError(nameof(steamIDs));
 				return;
@@ -163,7 +185,18 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		internal async Task RemoveIdlingPriorityAppIDs(HashSet<uint> appIDs) {
+		internal async Task RemoveIdlingBlacklistedAppIDs(IReadOnlyCollection<uint> appIDs) {
+			if ((appIDs == null) || (appIDs.Count == 0)) {
+				ASF.ArchiLogger.LogNullError(nameof(appIDs));
+				return;
+			}
+
+			if (IdlingBlacklistedAppIDs.RemoveRange(appIDs)) {
+				await Save().ConfigureAwait(false);
+			}
+		}
+
+		internal async Task RemoveIdlingPriorityAppIDs(IReadOnlyCollection<uint> appIDs) {
 			if ((appIDs == null) || (appIDs.Count == 0)) {
 				ASF.ArchiLogger.LogNullError(nameof(appIDs));
 				return;

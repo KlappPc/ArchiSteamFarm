@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Concurrent;
@@ -36,8 +33,21 @@ using ArchiSteamFarm.Localization;
 
 namespace ArchiSteamFarm {
 	internal static class ASF {
-		private const byte AutoUpdatePeriodInHours = 24;
-		private const string DefaultVersion = "source"; // Default entry of ArchiSteamFarm.version
+		private const string SourceVariant = "source";
+
+#if ASF_VARIANT_GENERIC
+		private const string Variant = "generic";
+#elif ASF_VARIANT_LINUX_ARM
+		private const string Variant = "linux-arm";
+#elif ASF_VARIANT_LINUX_X64
+		private const string Variant = "linux-x64";
+#elif ASF_VARIANT_OSX_X64
+		private const string Variant = "osx-x64";
+#elif ASF_VARIANT_WIN_X64
+		private const string Variant = "win-x64";
+#else
+		private const string Variant = SourceVariant;
+#endif
 
 		internal static readonly ArchiLogger ArchiLogger = new ArchiLogger(SharedInfo.ASF);
 
@@ -46,51 +56,16 @@ namespace ArchiSteamFarm {
 		private static Timer AutoUpdatesTimer;
 		private static FileSystemWatcher FileSystemWatcher;
 
-		internal static async Task CheckForUpdate(bool updateOverride = false) {
-			if (Program.GlobalConfig.UpdateChannel == GlobalConfig.EUpdateChannel.None) {
-				return;
+		internal static async Task<Version> CheckAndUpdateProgram(bool updateOverride = false) {
+			if (Variant.Equals(SourceVariant) || (Program.GlobalConfig.UpdateChannel == GlobalConfig.EUpdateChannel.None)) {
+				return null;
 			}
 
-			string assemblyFile = Assembly.GetEntryAssembly().Location;
-			if (string.IsNullOrEmpty(assemblyFile)) {
-				ArchiLogger.LogNullError(nameof(assemblyFile));
-				return;
-			}
-
-			if (!File.Exists(SharedInfo.VersionFile)) {
-				ArchiLogger.LogGenericError(string.Format(Strings.ErrorIsEmpty, SharedInfo.VersionFile));
-				return;
-			}
-
-			string version;
-
-			try {
-				version = await File.ReadAllTextAsync(SharedInfo.VersionFile).ConfigureAwait(false);
-			} catch (Exception e) {
-				ArchiLogger.LogGenericException(e);
-				return;
-			}
-
-			if (string.IsNullOrEmpty(version)) {
-				ArchiLogger.LogGenericError(string.Format(Strings.ErrorIsInvalid, SharedInfo.VersionFile));
-				return;
-			}
-
-			version = version.TrimEnd();
-			if (string.IsNullOrEmpty(version) || !IsValidVersion(version)) {
-				ArchiLogger.LogGenericError(string.Format(Strings.ErrorIsInvalid, SharedInfo.VersionFile));
-				return;
-			}
-
-			if (version.Equals(DefaultVersion)) {
-				return;
-			}
-
-			if ((AutoUpdatesTimer == null) && Program.GlobalConfig.AutoUpdates) {
-				TimeSpan autoUpdatePeriod = TimeSpan.FromHours(AutoUpdatePeriodInHours);
+			if ((AutoUpdatesTimer == null) && (Program.GlobalConfig.UpdatePeriod > 0)) {
+				TimeSpan autoUpdatePeriod = TimeSpan.FromHours(Program.GlobalConfig.UpdatePeriod);
 
 				AutoUpdatesTimer = new Timer(
-					async e => await CheckForUpdate().ConfigureAwait(false),
+					async e => await CheckAndUpdateProgram().ConfigureAwait(false),
 					null,
 					autoUpdatePeriod, // Delay
 					autoUpdatePeriod // Period
@@ -113,24 +88,21 @@ namespace ArchiSteamFarm {
 					Directory.Delete(backupDirectory, true);
 				} catch (Exception e) {
 					ArchiLogger.LogGenericException(e);
-					return;
+					return null;
 				}
 			}
 
 			// Cleanup from previous update - old non-runtime in-use files
-			foreach (string file in Directory.EnumerateFiles(targetDirectory, "*.old", SearchOption.AllDirectories)) {
-				try {
+			try {
+				foreach (string file in Directory.EnumerateFiles(targetDirectory, "*.old", SearchOption.AllDirectories)) {
 					File.Delete(file);
-				} catch (Exception e) {
-					ArchiLogger.LogGenericException(e);
-					return;
 				}
+			} catch (Exception e) {
+				ArchiLogger.LogGenericException(e);
+				return null;
 			}
 
-			string releaseURL = SharedInfo.GithubReleaseURL;
-			if (Program.GlobalConfig.UpdateChannel == GlobalConfig.EUpdateChannel.Stable) {
-				releaseURL += "/latest";
-			}
+			string releaseURL = SharedInfo.GithubReleaseURL + (Program.GlobalConfig.UpdateChannel == GlobalConfig.EUpdateChannel.Stable ? "/latest" : "?per_page=1");
 
 			GitHub.ReleaseResponse releaseResponse;
 
@@ -138,13 +110,13 @@ namespace ArchiSteamFarm {
 				releaseResponse = await Program.WebBrowser.UrlGetToJsonResultRetry<GitHub.ReleaseResponse>(releaseURL).ConfigureAwait(false);
 				if (releaseResponse == null) {
 					ArchiLogger.LogGenericWarning(Strings.ErrorUpdateCheckFailed);
-					return;
+					return null;
 				}
 			} else {
 				List<GitHub.ReleaseResponse> releases = await Program.WebBrowser.UrlGetToJsonResultRetry<List<GitHub.ReleaseResponse>>(releaseURL).ConfigureAwait(false);
 				if ((releases == null) || (releases.Count == 0)) {
 					ArchiLogger.LogGenericWarning(Strings.ErrorUpdateCheckFailed);
-					return;
+					return null;
 				}
 
 				releaseResponse = releases[0];
@@ -152,7 +124,7 @@ namespace ArchiSteamFarm {
 
 			if (string.IsNullOrEmpty(releaseResponse.Tag)) {
 				ArchiLogger.LogGenericWarning(Strings.ErrorUpdateCheckFailed);
-				return;
+				return null;
 			}
 
 			Version newVersion = new Version(releaseResponse.Tag);
@@ -160,45 +132,45 @@ namespace ArchiSteamFarm {
 			ArchiLogger.LogGenericInfo(string.Format(Strings.UpdateVersionInfo, SharedInfo.Version, newVersion));
 
 			if (SharedInfo.Version == newVersion) {
-				return;
+				return SharedInfo.Version;
 			}
 
 			if (SharedInfo.Version > newVersion) {
 				ArchiLogger.LogGenericWarning(Strings.WarningPreReleaseVersion);
 				await Task.Delay(15 * 1000).ConfigureAwait(false);
-				return;
+				return SharedInfo.Version;
 			}
 
-			if (!updateOverride && !Program.GlobalConfig.AutoUpdates) {
+			if (!updateOverride && (Program.GlobalConfig.UpdatePeriod == 0)) {
 				ArchiLogger.LogGenericInfo(Strings.UpdateNewVersionAvailable);
 				await Task.Delay(5000).ConfigureAwait(false);
-				return;
+				return null;
 			}
 
 			// Auto update logic starts here
 			if (releaseResponse.Assets == null) {
 				ArchiLogger.LogGenericWarning(Strings.ErrorUpdateNoAssets);
-				return;
+				return null;
 			}
 
-			string targetFile = SharedInfo.ASF + "-" + version + ".zip";
+			const string targetFile = SharedInfo.ASF + "-" + Variant + ".zip";
 			GitHub.ReleaseResponse.Asset binaryAsset = releaseResponse.Assets.FirstOrDefault(asset => asset.Name.Equals(targetFile, StringComparison.OrdinalIgnoreCase));
 
 			if (binaryAsset == null) {
 				ArchiLogger.LogGenericWarning(Strings.ErrorUpdateNoAssetForThisVersion);
-				return;
+				return null;
 			}
 
 			if (string.IsNullOrEmpty(binaryAsset.DownloadURL)) {
 				ArchiLogger.LogNullError(nameof(binaryAsset.DownloadURL));
-				return;
+				return null;
 			}
 
 			ArchiLogger.LogGenericInfo(string.Format(Strings.UpdateDownloadingNewVersion, newVersion, binaryAsset.Size / 1024 / 1024));
 
 			byte[] result = await Program.WebBrowser.UrlGetToBytesRetry(binaryAsset.DownloadURL).ConfigureAwait(false);
 			if (result == null) {
-				return;
+				return null;
 			}
 
 			try {
@@ -207,10 +179,10 @@ namespace ArchiSteamFarm {
 				}
 			} catch (Exception e) {
 				ArchiLogger.LogGenericException(e);
-				return;
+				return null;
 			}
 
-			if (IsUnixVersion(version)) {
+			if (IsUnixVariant(Variant)) {
 				string executable = Path.Combine(targetDirectory, SharedInfo.AssemblyName);
 				if (File.Exists(executable)) {
 					OS.UnixSetFileAccessExecutable(executable);
@@ -219,6 +191,7 @@ namespace ArchiSteamFarm {
 
 			ArchiLogger.LogGenericInfo(Strings.UpdateFinished);
 			await RestartOrExit().ConfigureAwait(false);
+			return newVersion;
 		}
 
 		internal static async Task InitBots() {
@@ -230,7 +203,7 @@ namespace ArchiSteamFarm {
 			await Bot.InitializeSteamConfiguration(Program.GlobalConfig.SteamProtocols, Program.GlobalDatabase.CellID, Program.GlobalDatabase.ServerListProvider).ConfigureAwait(false);
 
 			foreach (string botName in Directory.EnumerateFiles(SharedInfo.ConfigDirectory, "*.json").Select(Path.GetFileNameWithoutExtension).Where(botName => !string.IsNullOrEmpty(botName) && IsValidBotName(botName)).OrderBy(botName => botName)) {
-				Bot.RegisterBot(botName);
+				await Bot.RegisterBot(botName).ConfigureAwait(false);
 			}
 
 			if (Bot.Bots.Count == 0) {
@@ -243,9 +216,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			FileSystemWatcher = new FileSystemWatcher(SharedInfo.ConfigDirectory, "*.json") {
-				NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite
-			};
+			FileSystemWatcher = new FileSystemWatcher(SharedInfo.ConfigDirectory, "*.json") { NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite };
 
 			FileSystemWatcher.Changed += OnChanged;
 			FileSystemWatcher.Created += OnCreated;
@@ -272,16 +243,16 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			Bot.RegisterBot(botName);
+			await Bot.RegisterBot(botName).ConfigureAwait(false);
 		}
 
-		private static bool IsUnixVersion(string version) {
-			if (string.IsNullOrEmpty(version)) {
-				ArchiLogger.LogNullError(nameof(version));
+		private static bool IsUnixVariant(string variant) {
+			if (string.IsNullOrEmpty(variant)) {
+				ArchiLogger.LogNullError(nameof(variant));
 				return false;
 			}
 
-			switch (version) {
+			switch (variant) {
 				case "linux-arm":
 				case "linux-x64":
 				case "osx-x64":
@@ -308,25 +279,6 @@ namespace ArchiSteamFarm {
 					return false;
 				default:
 					return true;
-			}
-		}
-
-		private static bool IsValidVersion(string version) {
-			if (string.IsNullOrEmpty(version)) {
-				ArchiLogger.LogNullError(nameof(version));
-				return false;
-			}
-
-			switch (version) {
-				case DefaultVersion:
-				case "generic":
-				case "linux-arm":
-				case "linux-x64":
-				case "osx-x64":
-				case "win-x64":
-					return true;
-				default:
-					return false;
 			}
 		}
 
@@ -536,7 +488,7 @@ namespace ArchiSteamFarm {
 		}
 
 		private static async Task RestartOrExit() {
-			if (Program.GlobalConfig.AutoRestart) {
+			if (!Program.ServiceMode && Program.GlobalConfig.AutoRestart) {
 				ArchiLogger.LogGenericInfo(Strings.Restarting);
 				await Task.Delay(5000).ConfigureAwait(false);
 				await Program.Restart().ConfigureAwait(false);

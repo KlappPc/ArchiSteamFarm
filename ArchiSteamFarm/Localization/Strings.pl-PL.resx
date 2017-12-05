@@ -189,10 +189,6 @@ StackTrace:
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Otrzymano prośbę o dane wprowadzane przez użytkownika, ale proces działa w trybie headless!</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>Odmawiam wykonania tego polecenia, ponieważ SteamOwnerID nie został ustawiony!</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Zamykanie...</value>
   </data>
@@ -505,7 +501,7 @@ StackTrace:
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Wysyłanie ofert jest teraz tymczasowo wyłączone!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
+  <data name="BotSendingTradeToYourself" xml:space="preserve">
     <value>Nie możesz wysłać oferty do samego siebie!</value>
   </data>
   <data name="BotNoASFAuthenticator" xml:space="preserve">

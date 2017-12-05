@@ -189,10 +189,6 @@ StackTrace:
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Nhận được yêu cầu nhập của người dùng, nhưng quá trình đang chạy trong chế độ không kiểm soát!</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>Từ chối xử lý yêu cầu do SteamOwnerID chưa được đặt!</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Đang thoát...</value>
   </data>
@@ -505,8 +501,8 @@ StackTrace:
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Luộc đồ tạm thời vô hiệu hóa!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Bạn không thể luộc đồ chính mình!</value>
+  <data name="BotSendingTradeToYourself" xml:space="preserve">
+    <value>Bạn không thể gửi lời mời giao dịch cho chính mình!</value>
   </data>
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Bot này không có ASF 2FA kích hoạt! Bạn quên nhập xác thực của bạn là ASF 2FA?</value>
@@ -666,5 +662,8 @@ StackTrace:
     <value>Đã xóa hàng đợi khám phá Steam số #{0}.</value>
     <comment>{0} will be replaced by queue number</comment>
   </data>
-  
+  <data name="BotOwnsOverview" xml:space="preserve">
+    <value>Có {0}/{1} bots sở hữu toàn bộ games đang kiểm tra.</value>
+    <comment>{0} will be replaced by number of bots that already own games being checked, {1} will be replaced by total number of bots that were checked during the process</comment>
+  </data>
 </root>

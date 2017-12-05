@@ -1,3 +1,9 @@
 @echo off
 pushd %~dp0
-dotnet ArchiSteamFarm.dll
+
+SETLOCAL
+SET ASF_ARGS=%ASF_ARGS% %*
+
+dotnet --info
+
+dotnet ArchiSteamFarm.dll %ASF_ARGS%

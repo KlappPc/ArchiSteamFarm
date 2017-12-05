@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections;
@@ -48,6 +45,7 @@ namespace ArchiSteamFarm {
 
 		internal static GlobalConfig GlobalConfig { get; private set; }
 		internal static GlobalDatabase GlobalDatabase { get; private set; }
+		internal static bool ServiceMode { get; private set; }
 		internal static WebBrowser WebBrowser { get; private set; }
 
 		private static readonly object ConsoleLock = new object();
@@ -132,10 +130,6 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			// New process might want to start IPC before we in fact close
-			// Ensure that IPC is stopped before Process.Start()
-			IPC.Stop();
-
 			string executableName = Path.GetFileNameWithoutExtension(ProcessFileName);
 			IEnumerable<string> arguments = Environment.GetCommandLineArgs().Skip(executableName.Equals(SharedInfo.AssemblyName) ? 1 : 0);
 
@@ -152,7 +146,29 @@ namespace ArchiSteamFarm {
 			Environment.Exit(0);
 		}
 
-		private static async Task Init(string[] args) {
+		private static void HandleCryptKeyArgument(string cryptKey) {
+			if (string.IsNullOrEmpty(cryptKey)) {
+				ASF.ArchiLogger.LogNullError(nameof(cryptKey));
+				return;
+			}
+
+			CryptoHelper.SetEncryptionKey(cryptKey);
+		}
+
+		private static void HandlePathArgument(string path) {
+			if (string.IsNullOrEmpty(path)) {
+				ASF.ArchiLogger.LogNullError(nameof(path));
+				return;
+			}
+
+			try {
+				Directory.SetCurrentDirectory(path);
+			} catch (Exception e) {
+				ASF.ArchiLogger.LogGenericException(e);
+			}
+		}
+
+		private static async Task Init(IReadOnlyCollection<string> args) {
 			AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
 			AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 			TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -164,7 +180,7 @@ namespace ArchiSteamFarm {
 			await InitASF(args).ConfigureAwait(false);
 		}
 
-		private static async Task InitASF(string[] args) {
+		private static async Task InitASF(IReadOnlyCollection<string> args) {
 			ASF.ArchiLogger.LogGenericInfo("ASF V" + SharedInfo.Version + " (" + SharedInfo.ModuleVersion + ")");
 
 			await InitGlobalConfigAndLanguage().ConfigureAwait(false);
@@ -194,13 +210,13 @@ namespace ArchiSteamFarm {
 				ParsePostInitArgs(args);
 			}
 
-			await ASF.CheckForUpdate().ConfigureAwait(false);
+			await ASF.CheckAndUpdateProgram().ConfigureAwait(false);
 
 			await ASF.InitBots().ConfigureAwait(false);
 			ASF.InitEvents();
 		}
 
-		private static void InitCore(string[] args) {
+		private static void InitCore(IReadOnlyCollection<string> args) {
 			string homeDirectory = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
 			if (!string.IsNullOrEmpty(homeDirectory)) {
 				Directory.SetCurrentDirectory(homeDirectory);
@@ -250,12 +266,12 @@ namespace ArchiSteamFarm {
 					// GetCultureInfo() would be better but we can't use it for specifying neutral cultures such as "en"
 					CultureInfo culture = CultureInfo.CreateSpecificCulture(GlobalConfig.CurrentCulture);
 					CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = culture;
-				} catch (CultureNotFoundException) {
+				} catch (Exception) {
 					ASF.ArchiLogger.LogGenericError(Strings.ErrorInvalidCurrentCulture);
 				}
 			}
 
-			if (CultureInfo.CurrentCulture.TwoLetterISOLanguageName.Equals("en")) {
+			if (CultureInfo.CurrentUICulture.TwoLetterISOLanguageName.Equals("en")) {
 				return;
 			}
 
@@ -271,7 +287,7 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			ResourceSet currentResourceSet = Strings.ResourceManager.GetResourceSet(CultureInfo.CurrentCulture, true, true);
+			ResourceSet currentResourceSet = Strings.ResourceManager.GetResourceSet(CultureInfo.CurrentUICulture, true, true);
 			if (currentResourceSet == null) {
 				ASF.ArchiLogger.LogNullError(nameof(currentResourceSet));
 				return;
@@ -292,7 +308,7 @@ namespace ArchiSteamFarm {
 
 			if (currentStringObjects.Count < defaultStringObjects.Count) {
 				float translationCompleteness = currentStringObjects.Count / (float) defaultStringObjects.Count;
-				ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.TranslationIncomplete, CultureInfo.CurrentCulture.Name, translationCompleteness.ToString("P1")));
+				ASF.ArchiLogger.LogGenericInfo(string.Format(Strings.TranslationIncomplete, CultureInfo.CurrentUICulture.Name, translationCompleteness.ToString("P1")));
 			}
 		}
 
@@ -301,8 +317,9 @@ namespace ArchiSteamFarm {
 
 			if (!File.Exists(globalDatabaseFile)) {
 				ASF.ArchiLogger.LogGenericInfo(Strings.Welcome);
-				ASF.ArchiLogger.LogGenericWarning(Strings.WarningPrivacyPolicy);
 				await Task.Delay(10 * 1000).ConfigureAwait(false);
+				ASF.ArchiLogger.LogGenericWarning(Strings.WarningPrivacyPolicy);
+				await Task.Delay(5 * 1000).ConfigureAwait(false);
 			}
 
 			GlobalDatabase = GlobalDatabase.Load(globalDatabaseFile);
@@ -313,7 +330,6 @@ namespace ArchiSteamFarm {
 				return;
 			}
 
-			IPC.Initialize(GlobalConfig.IPCHost, GlobalConfig.IPCPort);
 			OS.Init(GlobalConfig.Headless);
 			WebBrowser.Init();
 
@@ -326,6 +342,16 @@ namespace ArchiSteamFarm {
 			}
 
 			ShutdownSequenceInitialized = true;
+
+			// Sockets created by HttpListener might still be running for a short while after complete app shutdown
+			// Ensure that IPC is stopped before we finalize shutdown sequence
+			if (IPC.IsRunning) {
+				IPC.Stop();
+
+				for (byte i = 0; (i < WebBrowser.MaxTries) && IPC.IsRunning; i++) {
+					await Task.Delay(1000).ConfigureAwait(false);
+				}
+			}
 
 			if (Bot.Bots.Count > 0) {
 				IEnumerable<Task> tasks = Bot.Bots.Values.Select(bot => Task.Run(() => bot.Stop(false)));
@@ -358,7 +384,7 @@ namespace ArchiSteamFarm {
 			await ShutdownResetEvent.Task.ConfigureAwait(false);
 		}
 
-		private static void OnProcessExit(object sender, EventArgs e) => IPC.Stop();
+		private static async void OnProcessExit(object sender, EventArgs e) => await Shutdown().ConfigureAwait(false);
 
 		private static async void OnUnhandledException(object sender, UnhandledExceptionEventArgs e) {
 			if (e?.ExceptionObject == null) {
@@ -383,23 +409,53 @@ namespace ArchiSteamFarm {
 			e.SetObserved();
 		}
 
-		private static void ParsePostInitArgs(IEnumerable<string> args) {
+		private static void ParsePostInitArgs(IReadOnlyCollection<string> args) {
 			if (args == null) {
 				ASF.ArchiLogger.LogNullError(nameof(args));
 				return;
 			}
 
+			bool cryptKeyNext = false;
+
 			foreach (string arg in args) {
 				switch (arg) {
 					case "":
 						break;
+					case "--path":
+						if (cryptKeyNext) {
+							goto default;
+						}
+
+						// Not handled in PostInit
+						break;
+					case "--cryptkey":
+						if (cryptKeyNext) {
+							goto default;
+						}
+
+						cryptKeyNext = true;
+						break;
 					case "--server":
-						IPC.Start();
+						if (cryptKeyNext) {
+							goto default;
+						}
+
+						IPC.Start(GlobalConfig.IPCHost, GlobalConfig.IPCPort);
+						break;
+					case "--service":
+						if (cryptKeyNext) {
+							goto default;
+						}
+
+						ServiceMode = true;
 						break;
 					default:
-						if (arg.StartsWith("--", StringComparison.Ordinal)) {
+						if (cryptKeyNext) {
+							cryptKeyNext = false;
+							HandleCryptKeyArgument(arg);
+						} else if (arg.StartsWith("--", StringComparison.Ordinal)) {
 							if (arg.StartsWith("--cryptkey=", StringComparison.Ordinal) && (arg.Length > 11)) {
-								CryptoHelper.SetEncryptionKey(arg.Substring(11));
+								HandleCryptKeyArgument(arg.Substring(11));
 							}
 						}
 
@@ -408,20 +464,41 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		private static void ParsePreInitArgs(IEnumerable<string> args) {
+		private static void ParsePreInitArgs(IReadOnlyCollection<string> args) {
 			if (args == null) {
 				ASF.ArchiLogger.LogNullError(nameof(args));
 				return;
 			}
 
+			bool pathNext = false;
+
 			foreach (string arg in args) {
 				switch (arg) {
 					case "":
 						break;
+					case "--cryptkey":
+					case "--server":
+					case "--service":
+						if (pathNext) {
+							goto default;
+						}
+
+						// Not handled in PreInit
+						break;
+					case "--path":
+						if (pathNext) {
+							goto default;
+						}
+
+						pathNext = true;
+						break;
 					default:
-						if (arg.StartsWith("--", StringComparison.Ordinal)) {
+						if (pathNext) {
+							pathNext = false;
+							HandlePathArgument(arg);
+						} else if (arg.StartsWith("--", StringComparison.Ordinal)) {
 							if (arg.StartsWith("--path=", StringComparison.Ordinal) && (arg.Length > 7)) {
-								Directory.SetCurrentDirectory(arg.Substring(7));
+								HandlePathArgument(arg.Substring(7));
 							}
 						}
 

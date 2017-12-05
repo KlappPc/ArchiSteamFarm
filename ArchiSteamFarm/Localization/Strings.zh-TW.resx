@@ -186,10 +186,6 @@
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>收到一個使用者輸入請求，但程序已在無標頭模式下運行！</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>因為未設置 SteamOwnerID，無法處理該請求！</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>正在退出...</value>
   </data>
@@ -502,8 +498,8 @@
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>搜刮功能暫時停用！</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>你無法搜括自己的物品庫！</value>
+  <data name="BotSendingTradeToYourself" xml:space="preserve">
+    <value>您無法發送交易給自己！</value>
   </data>
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>這個 BOT 並未啟用 ASF 二階段驗證！您是否忘記將二階段驗證導入至 ASF？</value>

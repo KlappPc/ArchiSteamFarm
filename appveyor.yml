@@ -10,72 +10,96 @@ configuration: Release
 platform: Any CPU
 clone_depth: 10
 environment:
-  DOTNET_CHANNEL: 2.0
   DOTNET_CLI_TELEMETRY_OPTOUT: true
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
-  RUNTIMES: generic win-x64 linux-x64 linux-arm osx-x64
+  VARIANTS: generic win-x64 linux-x64 linux-arm osx-x64 # NOTE: When modifying variants, don't forget to update ASF_VARIANT definitions in ASF.cs!
 matrix:
   fast_finish: true
-install:
-- ps: >-
-    $ErrorActionPreference = 'Stop'
-
-    dotnet --info
-
-    $env:DOTNET_INSTALL_DIR = "$pwd\.dotnetcli"
-
-
-    New-Item '.\scripts\obtain' -ItemType 'directory' -Force
-
-    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/dotnet/cli/master/scripts/obtain/dotnet-install.ps1' -OutFile '.\scripts\obtain\dotnet-install.ps1'
-
-    .\scripts\obtain\dotnet-install.ps1 -Channel "$env:DOTNET_CHANNEL" -InstallDir "$env:DOTNET_INSTALL_DIR"
 before_build:
 - ps: >-
+    Set-StrictMode -Version Latest
+
     $ErrorActionPreference = 'Stop'
+
+    $ProgressPreference = 'SilentlyContinue'
+
 
     dotnet --info
 
     dotnet restore
 build_script:
 - ps: >-
+    Set-StrictMode -Version Latest
+
     $ErrorActionPreference = 'Stop'
+
+    $ProgressPreference = 'SilentlyContinue'
+
 
     dotnet build -c "$env:CONFIGURATION" -o 'out\source' --no-restore /nologo
 test_script:
 - ps: >-
+    Set-StrictMode -Version Latest
+
     $ErrorActionPreference = 'Stop'
+
+    $ProgressPreference = 'SilentlyContinue'
+
 
     dotnet test ArchiSteamFarm.Tests -c "$env:CONFIGURATION" -o 'out\source' --no-build --no-restore
 after_test:
 - ps: >-
+    Set-StrictMode -Version Latest
+
     $ErrorActionPreference = 'Stop'
 
-    $PublishBlock = {
-        param($RUNTIME)
+    $ProgressPreference = 'SilentlyContinue'
 
+
+    $PublishBlock = {
+        param($Variant)
+
+        Set-StrictMode -Version Latest
         $ErrorActionPreference = 'Stop'
+        $ProgressPreference = 'SilentlyContinue'
 
         Set-Location -Path "$env:APPVEYOR_BUILD_FOLDER"
 
-        if ($RUNTIME -eq 'generic') {
-            dotnet publish ArchiSteamFarm -c "$env:CONFIGURATION" -o "out\$RUNTIME" --no-restore /nologo
+        if ($Variant -eq 'generic') {
+            dotnet publish ArchiSteamFarm -c "$env:CONFIGURATION" -o "out\$Variant" --no-restore /nologo "/p:ASFVariant=$Variant" /p:LinkDuringPublish=false
         } else {
-            dotnet publish ArchiSteamFarm -c "$env:CONFIGURATION" -o "out\$RUNTIME" -r "$RUNTIME" --no-restore /nologo
+            dotnet publish ArchiSteamFarm -c "$env:CONFIGURATION" -o "out\$Variant" -r "$Variant" --no-restore /nologo "/p:ASFVariant=$Variant"
         }
 
-        Set-Content -Path "ArchiSteamFarm\out\$RUNTIME\ArchiSteamFarm.version" -Value "$RUNTIME"
-
-        if (Test-Path -Path "ArchiSteamFarm\scripts\$RUNTIME" -PathType Container) {
-            Copy-Item "ArchiSteamFarm\scripts\$RUNTIME\*" -Destination "ArchiSteamFarm\out\$RUNTIME"
+        # If we include any helper scripts for this variant, copy them to output directory
+        if (Test-Path -Path "ArchiSteamFarm\scripts\$Variant" -PathType Container) {
+            Copy-Item "ArchiSteamFarm\scripts\$Variant\*" -Destination "ArchiSteamFarm\out\$Variant"
         }
 
-        7z a -bd -tzip -mm=Deflate64 -mx=9 -mfb=257 -mpass=3 "ArchiSteamFarm\out\ASF-$RUNTIME.zip" "$env:APPVEYOR_BUILD_FOLDER\ArchiSteamFarm\out\$RUNTIME\*"
-        Push-AppveyorArtifact "ArchiSteamFarm\out\ASF-$RUNTIME.zip" -FileName "ASF-$RUNTIME.zip" -DeploymentName "ASF-$RUNTIME.zip"
+        # Until https://github.com/dotnet/cli/issues/3267 happens, we'll hack dotnet binary icon on Windows and include .ico file on other platforms
+        if (Test-Path -Path "ArchiSteamFarm\out\$Variant\ArchiSteamFarm.exe" -PathType Leaf) {
+            tools\rcedit\rcedit-x64.exe "ArchiSteamFarm\out\$Variant\ArchiSteamFarm.exe" --set-icon 'resources\ASF.ico'
+        } else {
+            Copy-Item 'resources\ASF.ico' -Destination "ArchiSteamFarm\out\$Variant\ArchiSteamFarm.ico"
+        }
+
+        if ($env:APPVEYOR_REPO_TAG -eq 'true') {
+            # Update link in Changelog.html accordingly
+            if (Test-Path -Path "ArchiSteamFarm\out\$Variant\Changelog.html" -PathType Leaf) {
+                (Get-Content -Path "ArchiSteamFarm\out\$Variant\Changelog.html").Replace('ArchiSteamFarm/commits/master', "ArchiSteamFarm/releases/tag/$env:APPVEYOR_REPO_TAG_NAME") | Set-Content -Path "ArchiSteamFarm\out\$Variant\Changelog.html"
+            }
+        
+            $zipArgs = '-mx=9', '-mfb=257', '-mpass=15'
+        } else {
+            $zipArgs = '-mx=1'
+        }
+
+        7z a -bd -tzip -mm=Deflate64 $zipArgs "ArchiSteamFarm\out\ASF-$Variant.zip" "$env:APPVEYOR_BUILD_FOLDER\ArchiSteamFarm\out\$Variant\*"
+        Push-AppveyorArtifact "ArchiSteamFarm\out\ASF-$Variant.zip" -FileName "ASF-$Variant.zip" -DeploymentName "ASF-$Variant.zip"
     }
 
-    foreach ($RUNTIME in $env:RUNTIMES.Split([char[]] $null, [System.StringSplitOptions]::RemoveEmptyEntries)) {
-        Start-Job -Name "$RUNTIME" -ScriptBlock $PublishBlock -ArgumentList "$RUNTIME"
+    foreach ($variant in $env:VARIANTS.Split([char[]] $null, [System.StringSplitOptions]::RemoveEmptyEntries)) {
+        Start-Job -Name "$variant" -ScriptBlock $PublishBlock -ArgumentList "$variant"
     }
 
     Get-Job | Receive-Job -AutoRemoveJob -Wait

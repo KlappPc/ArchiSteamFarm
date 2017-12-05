@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -41,12 +38,12 @@ using Formatting = Newtonsoft.Json.Formatting;
 
 namespace ArchiSteamFarm {
 	internal sealed class ArchiWebHandler : IDisposable {
+		internal const byte MinSessionTTL = GlobalConfig.DefaultConnectionTimeout / 6; // Assume session is valid for at least that amount of seconds
+
 		private const string IEconService = "IEconService";
 		private const string IPlayerService = "IPlayerService";
 		private const string ISteamUserAuth = "ISteamUserAuth";
 		private const string ITwoFactorService = "ITwoFactorService";
-
-		private const byte MinSessionTTL = GlobalConfig.DefaultConnectionTimeout / 4; // Assume session is valid for at least that amount of seconds
 
 		// We must use HTTPS for SteamCommunity, as http would make certain POST requests failing (trades)
 		private const string SteamCommunityHost = "steamcommunity.com";
@@ -71,6 +68,7 @@ namespace ArchiSteamFarm {
 		private bool? CachedPublicInventory;
 		private string CachedTradeToken;
 		private DateTime LastSessionRefreshCheck = DateTime.MinValue;
+		private bool MarkingInventoryScheduled;
 		private ulong SteamID;
 		private string VanityURL;
 
@@ -221,7 +219,7 @@ namespace ArchiSteamFarm {
 			return output?.Queue;
 		}
 
-		internal async Task<HashSet<Steam.TradeOffer>> GetActiveTradeOffers() {
+		internal async Task<HashSet<Steam.TradeOffer>> GetActiveTradeOffers(IReadOnlyCollection<ulong> ignoredTradeOfferIDs = null) {
 			string steamApiKey = await GetApiKey().ConfigureAwait(false);
 			if (string.IsNullOrEmpty(steamApiKey)) {
 				return null;
@@ -300,6 +298,10 @@ namespace ArchiSteamFarm {
 				if (tradeOfferID == 0) {
 					Bot.ArchiLogger.LogNullError(nameof(tradeOfferID));
 					return null;
+				}
+
+				if (ignoredTradeOfferIDs?.Contains(tradeOfferID) == true) {
+					continue;
 				}
 
 				uint otherSteamID3 = trade["accountid_other"].AsUnsignedInteger();
@@ -477,7 +479,7 @@ namespace ArchiSteamFarm {
 		}
 
 		[SuppressMessage("ReSharper", "FunctionComplexityOverflow")]
-		internal async Task<HashSet<Steam.Asset>> GetMySteamInventory(bool tradableOnly = false, HashSet<Steam.Asset.EType> wantedTypes = null, HashSet<uint> wantedRealAppIDs = null) {
+		internal async Task<HashSet<Steam.Asset>> GetMySteamInventory(bool tradableOnly = false, IReadOnlyCollection<Steam.Asset.EType> wantedTypes = null, IReadOnlyCollection<uint> wantedRealAppIDs = null) {
 			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
 				return null;
 			}
@@ -772,7 +774,7 @@ namespace ArchiSteamFarm {
 			return response?.Success;
 		}
 
-		internal async Task<bool?> HandleConfirmations(string deviceID, string confirmationHash, uint time, HashSet<MobileAuthenticator.Confirmation> confirmations, bool accept) {
+		internal async Task<bool?> HandleConfirmations(string deviceID, string confirmationHash, uint time, IReadOnlyCollection<MobileAuthenticator.Confirmation> confirmations, bool accept) {
 			if (string.IsNullOrEmpty(deviceID) || string.IsNullOrEmpty(confirmationHash) || (time == 0) || (confirmations == null) || (confirmations.Count == 0)) {
 				Bot.ArchiLogger.LogNullError(nameof(deviceID) + " || " + nameof(confirmationHash) + " || " + nameof(time) + " || " + nameof(confirmations));
 				return null;
@@ -941,17 +943,30 @@ namespace ArchiSteamFarm {
 			return await WebBrowser.UrlPostRetry(request, data).ConfigureAwait(false);
 		}
 
-		internal async Task<bool> MarkInventory() {
-			if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
-				return false;
-			}
+		internal async Task MarkInventory() {
+			// We aim to have a maximum of 2 tasks, one already working, and one waiting in the queue
+			// This way we can call this function as many times as needed e.g. because of Steam events
+			lock (InventorySemaphore) {
+				if (MarkingInventoryScheduled) {
+					return;
+				}
 
-			const string request = SteamCommunityURL + "/my/inventory";
+				MarkingInventoryScheduled = true;
+			}
 
 			await InventorySemaphore.WaitAsync().ConfigureAwait(false);
 
 			try {
-				return await WebBrowser.UrlHeadRetry(request).ConfigureAwait(false);
+				lock (InventorySemaphore) {
+					MarkingInventoryScheduled = false;
+				}
+
+				if (!await RefreshSessionIfNeeded().ConfigureAwait(false)) {
+					return;
+				}
+
+				const string request = SteamCommunityURL + "/my/inventory";
+				await WebBrowser.UrlHeadRetry(request).ConfigureAwait(false);
 			} finally {
 				if (Program.GlobalConfig.InventoryLimiterDelay == 0) {
 					InventorySemaphore.Release();
@@ -990,9 +1005,7 @@ namespace ArchiSteamFarm {
 			}
 
 			const string request = SteamStoreURL + "/account/validatewalletcode";
-			Dictionary<string, string> data = new Dictionary<string, string>(1) {
-				{ "wallet_code", key }
-			};
+			Dictionary<string, string> data = new Dictionary<string, string>(1) { { "wallet_code", key } };
 
 			Steam.RedeemWalletResponse response = await WebBrowser.UrlPostToJsonResultRetry<Steam.RedeemWalletResponse>(request, data).ConfigureAwait(false);
 			if (response == null) {
@@ -1002,7 +1015,7 @@ namespace ArchiSteamFarm {
 			return (response.Result, response.PurchaseResultDetail);
 		}
 
-		internal async Task<bool> SendTradeOffer(HashSet<Steam.Asset> inventory, ulong partnerID, string token = null) {
+		internal async Task<bool> SendTradeOffer(IReadOnlyCollection<Steam.Asset> inventory, ulong partnerID, string token = null) {
 			if ((inventory == null) || (inventory.Count == 0) || (partnerID == 0)) {
 				Bot.ArchiLogger.LogNullError(nameof(inventory) + " || " + nameof(inventory.Count) + " || " + nameof(partnerID));
 				return false;
@@ -1092,6 +1105,11 @@ namespace ArchiSteamFarm {
 				// We fetched API key already, and either got valid one, or permanent AccessDenied
 				// In any case, this is our final result
 				return CachedApiKey;
+			}
+
+			if (Bot.IsAccountLimited) {
+				// API key is permanently unavailable for limited accounts
+				return null;
 			}
 
 			// We didn't fetch API key yet
@@ -1283,7 +1301,7 @@ namespace ArchiSteamFarm {
 			return !uri?.AbsolutePath.StartsWith("/login", StringComparison.Ordinal);
 		}
 
-		private static bool ParseItems(Dictionary<ulong, (uint AppID, Steam.Asset.EType Type)> descriptions, List<KeyValue> input, HashSet<Steam.Asset> output) {
+		private static bool ParseItems(Dictionary<ulong, (uint AppID, Steam.Asset.EType Type)> descriptions, IReadOnlyCollection<KeyValue> input, ICollection<Steam.Asset> output) {
 			if ((descriptions == null) || (input == null) || (input.Count == 0) || (output == null)) {
 				ASF.ArchiLogger.LogNullError(nameof(descriptions) + " || " + nameof(input) + " || " + nameof(output));
 				return false;
@@ -1415,9 +1433,7 @@ namespace ArchiSteamFarm {
 			}
 
 			const string request = SteamCommunityURL + "/parental/ajaxunlock";
-			Dictionary<string, string> data = new Dictionary<string, string>(1) {
-				{ "pin", parentalPin }
-			};
+			Dictionary<string, string> data = new Dictionary<string, string>(1) { { "pin", parentalPin } };
 
 			return await WebBrowser.UrlPostRetry(request, data, SteamCommunityURL).ConfigureAwait(false);
 		}
@@ -1429,9 +1445,7 @@ namespace ArchiSteamFarm {
 			}
 
 			const string request = SteamStoreURL + "/parental/ajaxunlock";
-			Dictionary<string, string> data = new Dictionary<string, string>(1) {
-				{ "pin", parentalPin }
-			};
+			Dictionary<string, string> data = new Dictionary<string, string>(1) { { "pin", parentalPin } };
 
 			return await WebBrowser.UrlPostRetry(request, data, SteamStoreURL).ConfigureAwait(false);
 		}

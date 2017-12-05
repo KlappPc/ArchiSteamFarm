@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -48,7 +45,7 @@ namespace ArchiSteamFarm {
 		internal void OnDisconnected() => IgnoredTrades.Clear();
 
 		internal async Task OnNewTrade() {
-			// We aim to have a maximum of 2 tasks, one already parsing, and one waiting in the queue
+			// We aim to have a maximum of 2 tasks, one already working, and one waiting in the queue
 			// This way we can call this function as many times as needed e.g. because of Steam events
 			lock (TradesSemaphore) {
 				if (ParsingScheduled) {
@@ -71,7 +68,7 @@ namespace ArchiSteamFarm {
 			}
 		}
 
-		private static bool IsTradeNeutralOrBetter(HashSet<Steam.Asset> inventory, HashSet<Steam.Asset> itemsToGive, HashSet<Steam.Asset> itemsToReceive) {
+		private static bool IsTradeNeutralOrBetter(IReadOnlyCollection<Steam.Asset> inventory, IReadOnlyCollection<Steam.Asset> itemsToGive, IReadOnlyCollection<Steam.Asset> itemsToReceive) {
 			if ((inventory == null) || (inventory.Count == 0) || (itemsToGive == null) || (itemsToGive.Count == 0) || (itemsToReceive == null) || (itemsToReceive.Count == 0)) {
 				ASF.ArchiLogger.LogNullError(nameof(inventory) + " || " + nameof(itemsToGive) + " || " + nameof(itemsToReceive));
 				return false;
@@ -92,18 +89,15 @@ namespace ArchiSteamFarm {
 			Dictionary<(Steam.Asset.EType Type, uint AppID), List<uint>> itemAmountToGivePerGame = new Dictionary<(Steam.Asset.EType Type, uint AppID), List<uint>>();
 			Dictionary<ulong, uint> itemAmountsToGive = new Dictionary<ulong, uint>(itemAmounts);
 			foreach (Steam.Asset item in itemsToGive) {
-				if (!itemAmountToGivePerGame.TryGetValue((item.Type, item.RealAppID), out List<uint> amountsToGive)) {
-					amountsToGive = new List<uint>();
-					itemAmountToGivePerGame[(item.Type, item.RealAppID)] = amountsToGive;
-				}
+				for (uint i = 0; i < item.Amount; i++) {
+					if (!itemAmountToGivePerGame.TryGetValue((item.Type, item.RealAppID), out List<uint> amountsToGive)) {
+						amountsToGive = new List<uint>();
+						itemAmountToGivePerGame[(item.Type, item.RealAppID)] = amountsToGive;
+					}
 
-				if (!itemAmountsToGive.TryGetValue(item.ClassID, out uint amount)) {
-					amountsToGive.Add(0);
-					continue;
+					amountsToGive.Add(itemAmountsToGive.TryGetValue(item.ClassID, out uint amount) ? amount : 0);
+					itemAmountsToGive[item.ClassID] = amount - 1; // We're giving one, so we have one less
 				}
-
-				amountsToGive.Add(amount);
-				itemAmountsToGive[item.ClassID] = amount - 1; // We're giving one, so we have one less
 			}
 
 			// Sort all the lists of amounts to give on per-game basis ascending
@@ -115,18 +109,15 @@ namespace ArchiSteamFarm {
 			Dictionary<(Steam.Asset.EType Type, uint AppID), List<uint>> itemAmountToReceivePerGame = new Dictionary<(Steam.Asset.EType Type, uint AppID), List<uint>>();
 			Dictionary<ulong, uint> itemAmountsToReceive = new Dictionary<ulong, uint>(itemAmounts);
 			foreach (Steam.Asset item in itemsToReceive) {
-				if (!itemAmountToReceivePerGame.TryGetValue((item.Type, item.RealAppID), out List<uint> amountsToReceive)) {
-					amountsToReceive = new List<uint>();
-					itemAmountToReceivePerGame[(item.Type, item.RealAppID)] = amountsToReceive;
-				}
+				for (uint i = 0; i < item.Amount; i++) {
+					if (!itemAmountToReceivePerGame.TryGetValue((item.Type, item.RealAppID), out List<uint> amountsToReceive)) {
+						amountsToReceive = new List<uint>();
+						itemAmountToReceivePerGame[(item.Type, item.RealAppID)] = amountsToReceive;
+					}
 
-				if (!itemAmountsToReceive.TryGetValue(item.ClassID, out uint amount)) {
-					amountsToReceive.Add(0);
-					continue;
+					amountsToReceive.Add(itemAmountsToReceive.TryGetValue(item.ClassID, out uint amount) ? amount : 0);
+					itemAmountsToReceive[item.ClassID] = amount + 1; // We're getting one, so we have one more
 				}
-
-				amountsToReceive.Add(amount);
-				itemAmountsToReceive[item.ClassID] = amount + 1; // We're getting one, so we have one more
 			}
 
 			// Sort all the lists of amounts to receive on per-game basis ascending
@@ -142,17 +133,9 @@ namespace ArchiSteamFarm {
 		}
 
 		private async Task ParseActiveTrades() {
-			HashSet<Steam.TradeOffer> tradeOffers = await Bot.ArchiWebHandler.GetActiveTradeOffers().ConfigureAwait(false);
+			HashSet<Steam.TradeOffer> tradeOffers = await Bot.ArchiWebHandler.GetActiveTradeOffers(IgnoredTrades).ConfigureAwait(false);
 			if ((tradeOffers == null) || (tradeOffers.Count == 0)) {
 				return;
-			}
-
-			if (IgnoredTrades.Count > 0) {
-				if (tradeOffers.RemoveWhere(tradeoffer => IgnoredTrades.Contains(tradeoffer.TradeOfferID)) > 0) {
-					if (tradeOffers.Count == 0) {
-						return;
-					}
-				}
 			}
 
 			IEnumerable<Task<ParseTradeResult>> tasks = tradeOffers.Select(ParseTrade);
@@ -272,7 +255,7 @@ namespace ArchiSteamFarm {
 				}
 
 				// Otherwise we either accept donations but not bot trades, or we accept bot trades but not donations
-				bool isBotTrade = (tradeOffer.OtherSteamID64 != 0) && Bot.Bots.Values.Any(bot => bot.SteamID == tradeOffer.OtherSteamID64);
+				bool isBotTrade = (tradeOffer.OtherSteamID64 != 0) && Bot.Bots.Values.Any(bot => bot.CachedSteamID == tradeOffer.OtherSteamID64);
 				return new ParseTradeResult(tradeOffer.TradeOfferID, (acceptDonations && !isBotTrade) || (acceptBotTrades && isBotTrade) ? ParseTradeResult.EResult.AcceptedWithoutItemLose : ParseTradeResult.EResult.RejectedPermanently);
 			}
 

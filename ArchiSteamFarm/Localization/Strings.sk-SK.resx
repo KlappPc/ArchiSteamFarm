@@ -187,7 +187,6 @@ StackTrace:
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Vstup od užívateľa bol prijatý, ale proces beží v automatickom režime!</value>
   </data>
-  
   <data name="Exiting" xml:space="preserve">
     <value>Ukončenie...</value>
   </data>
@@ -486,9 +485,7 @@ StackTrace:
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Zasielanie je dočasne zakázané!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Nie je možné zasielanie sebe samému!</value>
-  </data>
+  
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Tento bot nemá zapnuté ASF 2FA! Zabudol si vykonať import autentikátora pre použitie s ASF 2FA?</value>
   </data>

@@ -186,10 +186,6 @@
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Menerima permintaan untuk input pengguna, tetapi proses berjalan dalam mode Headless!</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>Menolak untuk menangani permintaan karena SteamOwnerID tidak diatur!</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Menutup...</value>
   </data>
@@ -502,9 +498,7 @@
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Looting dinonaktifkan sementara!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Anda tidak dapat me-loot diri sendiri!</value>
-  </data>
+  
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Bot tidak memiliki ASF 2FA yang diperbolehkan! Apakah kamu lupa untuk mengimpor authenticator kamu sebagai ASF 2FA?</value>
   </data>

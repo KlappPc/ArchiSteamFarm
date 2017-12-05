@@ -189,10 +189,6 @@ StackTrace:
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Recebido um pedido de entrada feito pelo usuário, mas o processo está sendo executado em modo headless!</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>Recusando-se a lidar com a requisição porque SteamOwnerID não está configurado!</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Saindo...</value>
   </data>
@@ -505,8 +501,8 @@ StackTrace:
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Coleta temporariamente desabilitada!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Você não pode coletar os seus próprios itens!</value>
+  <data name="BotSendingTradeToYourself" xml:space="preserve">
+    <value>Você não pode enviar uma troca para si mesmo!</value>
   </data>
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Este bot não possui ASF 2FA habilitado! Você esqueceu de configurar as confirmações para 2FA ASF?</value>

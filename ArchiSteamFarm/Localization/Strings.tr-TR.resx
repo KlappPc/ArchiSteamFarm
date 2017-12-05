@@ -189,10 +189,6 @@ Yığın izleme:
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Kullanıcı girdisi için bir istek alındı; ancak işlem headless modda çalışıyor!</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>SteamOwnerID ayarlanmadığı için istek reddedildi!</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Çıkılıyor...</value>
   </data>
@@ -253,7 +249,7 @@ Yığın izleme:
     <value>Yeni ASF sürümü mevcut! Güncellemeyi düşünün!</value>
   </data>
   <data name="UpdateVersionInfo" xml:space="preserve">
-    <value>Yerel sürümü: {0} | Uzak sürüm: {1}</value>
+    <value>Yerel sürüm: {0} | Uzak sürüm: {1}</value>
     <comment>{0} will be replaced by current version, {1} will be replaced by remote version</comment>
   </data>
   <data name="UserInputDeviceID" xml:space="preserve">
@@ -505,8 +501,8 @@ Yığın izleme:
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Düşürme geçici olarak devre dışı!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Kendinizden düşüremezsiniz!</value>
+  <data name="BotSendingTradeToYourself" xml:space="preserve">
+    <value>Kendinize takas teklifi gönderemezsiniz!</value>
   </data>
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Bu botta ASF 2FD mevcut değil!! Doğrulayıcınızı ASF 2FD olarak içe aktarmayı unuttunuz mu?</value>
@@ -667,7 +663,7 @@ Yığın izleme:
     <comment>{0} will be replaced by queue number</comment>
   </data>
   <data name="BotOwnsOverview" xml:space="preserve">
-    <value>{0}/{1} bot zaten sahip olunan tüm oyunları denetliyor.</value>
+    <value>Zaten sahip olunan tüm oyunları denetleyen {0}/{1} bot mevcut.</value>
     <comment>{0} will be replaced by number of bots that already own games being checked, {1} will be replaced by total number of bots that were checked during the process</comment>
   </data>
 </root>

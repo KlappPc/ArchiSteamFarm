@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -30,6 +27,7 @@ using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 using ArchiSteamFarm.CMsgs;
+using ArchiSteamFarm.Localization;
 using SteamKit2;
 using SteamKit2.Internal;
 
@@ -124,9 +122,7 @@ namespace ArchiSteamFarm {
 			}
 
 			foreach (uint gameID in gameIDs.Where(gameID => gameID != 0)) {
-				request.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed {
-					game_id = new GameID(gameID)
-				});
+				request.Body.games_played.Add(new CMsgClientGamesPlayed.GamePlayed { game_id = new GameID(gameID) });
 			}
 
 			Client.Send(request);
@@ -182,6 +178,11 @@ namespace ArchiSteamFarm {
 			}
 		}
 
+		internal void RequestItemAnnouncements() {
+			ClientMsgProtobuf<CMsgClientRequestItemAnnouncements> request = new ClientMsgProtobuf<CMsgClientRequestItemAnnouncements>(EMsg.ClientRequestItemAnnouncements);
+			Client.Send(request);
+		}
+
 		private void HandleFSOfflineMessageNotification(IPacketMsg packetMsg) {
 			if (packetMsg == null) {
 				ArchiLogger.LogNullError(nameof(packetMsg));
@@ -199,7 +200,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ClientMsgProtobuf<CMsgClientItemAnnouncements> response = new ClientMsgProtobuf<CMsgClientItemAnnouncements>(packetMsg);
-			Client.PostCallback(new NotificationsCallback(packetMsg.TargetJobID, response.Body));
+			Client.PostCallback(new UserNotificationsCallback(packetMsg.TargetJobID, response.Body));
 		}
 
 		private void HandlePlayingSessionState(IPacketMsg packetMsg) {
@@ -249,49 +250,7 @@ namespace ArchiSteamFarm {
 			}
 
 			ClientMsgProtobuf<CMsgClientUserNotifications> response = new ClientMsgProtobuf<CMsgClientUserNotifications>(packetMsg);
-			Client.PostCallback(new NotificationsCallback(packetMsg.TargetJobID, response.Body));
-		}
-
-		internal sealed class NotificationsCallback : CallbackMsg {
-			internal readonly HashSet<ENotification> Notifications;
-
-			internal NotificationsCallback(JobID jobID, CMsgClientUserNotifications msg) {
-				if ((jobID == null) || (msg == null)) {
-					throw new ArgumentNullException(nameof(jobID) + " || " + nameof(msg));
-				}
-
-				JobID = jobID;
-
-				if (msg.notifications.Count == 0) {
-					return;
-				}
-
-				Notifications = new HashSet<ENotification>(msg.notifications.Select(notification => (ENotification) notification.user_notification_type));
-			}
-
-			internal NotificationsCallback(JobID jobID, CMsgClientItemAnnouncements msg) {
-				if ((jobID == null) || (msg == null)) {
-					throw new ArgumentNullException(nameof(jobID) + " || " + nameof(msg));
-				}
-
-				JobID = jobID;
-
-				if (msg.count_new_items > 0) {
-					Notifications = new HashSet<ENotification> {
-						ENotification.Items
-					};
-				}
-			}
-
-			internal enum ENotification : byte {
-				[SuppressMessage("ReSharper", "UnusedMember.Global")]
-				Unknown = 0,
-
-				Trading = 1,
-
-				// Only custom below, different than ones available as user_notification_type
-				Items = 254
-			}
+			Client.PostCallback(new UserNotificationsCallback(packetMsg.TargetJobID, response.Body));
 		}
 
 		internal sealed class OfflineMessageCallback : CallbackMsg {
@@ -414,6 +373,73 @@ namespace ArchiSteamFarm {
 				}
 
 				LibraryLockedBySteamID = new SteamID(msg.own_library_locked_by, EUniverse.Public, EAccountType.Individual);
+			}
+		}
+
+		internal sealed class UserNotificationsCallback : CallbackMsg {
+			internal readonly Dictionary<EUserNotification, uint> Notifications;
+
+			internal UserNotificationsCallback(JobID jobID, CMsgClientUserNotifications msg) {
+				if ((jobID == null) || (msg == null)) {
+					throw new ArgumentNullException(nameof(jobID) + " || " + nameof(msg));
+				}
+
+				JobID = jobID;
+
+				// We might get null body here, and that means there are no notifications related to trading
+				Notifications = new Dictionary<EUserNotification, uint>(1) { { EUserNotification.Trading, 0 } };
+
+				if (msg.notifications == null) {
+					return;
+				}
+
+				foreach (CMsgClientUserNotifications.Notification notification in msg.notifications) {
+					EUserNotification type = (EUserNotification) notification.user_notification_type;
+
+					switch (type) {
+						case EUserNotification.AccountAlerts:
+						case EUserNotification.Chat:
+						case EUserNotification.Comments:
+						case EUserNotification.GameTurns:
+						case EUserNotification.Gifts:
+						case EUserNotification.HelpRequestReplies:
+						case EUserNotification.Invites:
+						case EUserNotification.Items:
+						case EUserNotification.ModeratorMessages:
+						case EUserNotification.Trading:
+							break;
+						default:
+							ASF.ArchiLogger.LogGenericWarning(string.Format(Strings.WarningUnknownValuePleaseReport, nameof(type), type));
+							continue;
+					}
+
+					Notifications[type] = notification.count;
+				}
+			}
+
+			internal UserNotificationsCallback(JobID jobID, CMsgClientItemAnnouncements msg) {
+				if ((jobID == null) || (msg == null)) {
+					throw new ArgumentNullException(nameof(jobID) + " || " + nameof(msg));
+				}
+
+				JobID = jobID;
+				Notifications = new Dictionary<EUserNotification, uint>(1) { { EUserNotification.Items, msg.count_new_items } };
+			}
+
+			[SuppressMessage("ReSharper", "UnusedMember.Global")]
+			internal enum EUserNotification : byte {
+				Unknown,
+				Trading,
+				GameTurns,
+				ModeratorMessages,
+				Comments,
+				Items,
+				Invites,
+				Unknown7, // No clue what 7 stands for, and I doubt we can find out
+				Gifts,
+				Chat,
+				HelpRequestReplies,
+				AccountAlerts
 			}
 		}
 	}

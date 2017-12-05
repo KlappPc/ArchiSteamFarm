@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -45,9 +42,6 @@ namespace ArchiSteamFarm {
 		internal readonly bool AutoRestart = true;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly bool AutoUpdates = true;
-
-		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte BackgroundGCPeriod;
 
 		[JsonProperty(Required = Required.DisallowNull)]
@@ -56,15 +50,11 @@ namespace ArchiSteamFarm {
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte ConnectionTimeout = DefaultConnectionTimeout;
 
-#pragma warning disable 649
 		[JsonProperty]
 		internal readonly string CurrentCulture;
-#pragma warning restore 649
 
-#pragma warning disable 649
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool Debug;
-#pragma warning restore 649
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte FarmingDelay = 15;
@@ -72,16 +62,17 @@ namespace ArchiSteamFarm {
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte GiftsLimiterDelay = 1;
 
-#pragma warning disable 649
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly bool Headless;
-#pragma warning restore 649
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte IdleFarmingPeriod = 8;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly byte InventoryLimiterDelay = 3;
+
+		[JsonProperty]
+		internal readonly string IPCPassword;
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal readonly ushort IPCPort = DefaultIPCPort;
@@ -102,10 +93,10 @@ namespace ArchiSteamFarm {
 		internal readonly bool Statistics = true;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly ProtocolTypes SteamProtocols = ProtocolTypes.Tcp;
+		internal readonly EUpdateChannel UpdateChannel = EUpdateChannel.Stable;
 
 		[JsonProperty(Required = Required.DisallowNull)]
-		internal readonly EUpdateChannel UpdateChannel = EUpdateChannel.Stable;
+		internal readonly byte UpdatePeriod = 24;
 
 		[JsonProperty]
 		internal string IPCHost { get; set; } = "127.0.0.1";
@@ -124,6 +115,9 @@ namespace ArchiSteamFarm {
 
 		[JsonProperty(Required = Required.DisallowNull)]
 		internal ulong SteamOwnerID { get; private set; }
+
+		[JsonProperty(Required = Required.DisallowNull)]
+		internal ProtocolTypes SteamProtocols { get; private set; } = ProtocolTypes.Tcp | ProtocolTypes.Udp;
 
 		// This constructor is used only by deserializer
 		private GlobalConfig() { }
@@ -172,6 +166,13 @@ namespace ArchiSteamFarm {
 			if (globalConfig.IPCPort == 0) {
 				ASF.ArchiLogger.LogGenericError(string.Format(Strings.ErrorConfigPropertyInvalid, nameof(globalConfig.IPCPort), globalConfig.IPCPort));
 				return null;
+			}
+
+			if (globalConfig.SteamProtocols.HasFlag(ProtocolTypes.WebSocket) && !OS.SupportsWebSockets()) {
+				globalConfig.SteamProtocols &= ~ProtocolTypes.WebSocket;
+				if (globalConfig.SteamProtocols == 0) {
+					globalConfig.SteamProtocols = ProtocolTypes.Tcp;
+				}
 			}
 
 			GlobalConfig result = globalConfig;

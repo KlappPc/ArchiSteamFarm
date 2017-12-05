@@ -1,26 +1,23 @@
-﻿/*
-    _                _      _  ____   _                           _____
-   / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
-  / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
- / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
-/_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
-
- Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
- Contact: JustArchi@JustArchi.net
-
- Licensed under the Apache License, Version 2.0 (the "License");
- you may not use this file except in compliance with the License.
- You may obtain a copy of the License at
-
- http://www.apache.org/licenses/LICENSE-2.0
-					
- Unless required by applicable law or agreed to in writing, software
- distributed under the License is distributed on an "AS IS" BASIS,
- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- See the License for the specific language governing permissions and
- limitations under the License.
-
-*/
+﻿//     _                _      _  ____   _                           _____
+//    / \    _ __  ___ | |__  (_)/ ___| | |_  ___   __ _  _ __ ___  |  ___|__ _  _ __  _ __ ___
+//   / _ \  | '__|/ __|| '_ \ | |\___ \ | __|/ _ \ / _` || '_ ` _ \ | |_  / _` || '__|| '_ ` _ \
+//  / ___ \ | |  | (__ | | | || | ___) || |_|  __/| (_| || | | | | ||  _|| (_| || |   | | | | | |
+// /_/   \_\|_|   \___||_| |_||_||____/  \__|\___| \__,_||_| |_| |_||_|   \__,_||_|   |_| |_| |_|
+// 
+//  Copyright 2015-2017 Łukasz "JustArchi" Domeradzki
+//  Contact: JustArchi@JustArchi.net
+// 
+//  Licensed under the Apache License, Version 2.0 (the "License");
+//  you may not use this file except in compliance with the License.
+//  You may obtain a copy of the License at
+// 
+//  http://www.apache.org/licenses/LICENSE-2.0
+//      
+//  Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS,
+//  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+//  See the License for the specific language governing permissions and
+//  limitations under the License.
 
 using System;
 using System.Collections.Generic;
@@ -159,10 +156,8 @@ namespace ArchiSteamFarm.JSON {
 
 		[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 		internal sealed class ConfirmationDetails {
-#pragma warning disable 649
 			[JsonProperty(PropertyName = "success", Required = Required.Always)]
 			internal readonly bool Success;
-#pragma warning restore 649
 
 			internal ulong OtherSteamID64 {
 				get {
@@ -334,10 +329,8 @@ namespace ArchiSteamFarm.JSON {
 
 		[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 		internal sealed class ConfirmationResponse {
-#pragma warning disable 649
 			[JsonProperty(PropertyName = "success", Required = Required.Always)]
 			internal readonly bool Success;
-#pragma warning restore 649
 
 			// Deserialized from JSON
 			private ConfirmationResponse() { }
@@ -345,10 +338,8 @@ namespace ArchiSteamFarm.JSON {
 
 		[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 		internal sealed class GenericResponse {
-#pragma warning disable 649
 			[JsonProperty(PropertyName = "success", Required = Required.Always)]
 			internal readonly EResult Result;
-#pragma warning restore 649
 
 			// Deserialized from JSON
 			private GenericResponse() { }
@@ -445,10 +436,8 @@ namespace ArchiSteamFarm.JSON {
 
 		[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 		internal sealed class NewDiscoveryQueueResponse {
-#pragma warning disable 649
 			[JsonProperty(PropertyName = "queue", Required = Required.Always)]
 			internal readonly HashSet<uint> Queue;
-#pragma warning restore 649
 
 			// Deserialized from JSON
 			private NewDiscoveryQueueResponse() { }
@@ -456,15 +445,11 @@ namespace ArchiSteamFarm.JSON {
 
 		[SuppressMessage("ReSharper", "ClassCannotBeInstantiated")]
 		internal sealed class RedeemWalletResponse {
-#pragma warning disable 649
 			[JsonProperty(PropertyName = "detail", Required = Required.DisallowNull)]
 			internal readonly EPurchaseResultDetail? PurchaseResultDetail;
-#pragma warning restore 649
 
-#pragma warning disable 649
 			[JsonProperty(PropertyName = "success", Required = Required.Always)]
 			internal readonly EResult Result;
-#pragma warning restore 649
 
 			// Deserialized from JSON
 			private RedeemWalletResponse() { }
@@ -526,9 +511,7 @@ namespace ArchiSteamFarm.JSON {
 				Dictionary<uint, Dictionary<Asset.EType, uint>> itemsToReceivePerGame = new Dictionary<uint, Dictionary<Asset.EType, uint>>();
 				foreach (Asset item in ItemsToReceive) {
 					if (!itemsToReceivePerGame.TryGetValue(item.RealAppID, out Dictionary<Asset.EType, uint> itemsPerType)) {
-						itemsPerType = new Dictionary<Asset.EType, uint> {
-							{ item.Type, item.Amount }
-						};
+						itemsPerType = new Dictionary<Asset.EType, uint> { { item.Type, item.Amount } };
 
 						itemsToReceivePerGame[item.RealAppID] = itemsPerType;
 					} else {
@@ -560,7 +543,7 @@ namespace ArchiSteamFarm.JSON {
 				return true;
 			}
 
-			internal bool IsValidSteamItemsRequest(HashSet<Asset.EType> acceptedTypes) {
+			internal bool IsValidSteamItemsRequest(IReadOnlyCollection<Asset.EType> acceptedTypes) {
 				if ((acceptedTypes == null) || (acceptedTypes.Count == 0)) {
 					ASF.ArchiLogger.LogNullError(nameof(acceptedTypes));
 					return false;

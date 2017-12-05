@@ -186,10 +186,6 @@
   <data name="ErrorUserInputRunningInHeadlessMode" xml:space="preserve">
     <value>Gautas prašymas reikalaujantis naudotojo įvesties, bet procesas veikia "headless" mode!</value>
   </data>
-  <data name="ErrorIPCAccessDenied" xml:space="preserve">
-    <value>Atsisakoma apdoroti užklausa, nes SteamOwnerID nėra nustatytas!</value>
-    <comment>SteamOwnerID is name of bot config property, it should not be translated</comment>
-  </data>
   <data name="Exiting" xml:space="preserve">
     <value>Stabdoma...</value>
   </data>
@@ -502,8 +498,8 @@
   <data name="BotLootingTemporarilyDisabled" xml:space="preserve">
     <value>Kortelių grobis laikinai išjungtas!</value>
   </data>
-  <data name="BotLootingYourself" xml:space="preserve">
-    <value>Jūs negalite grobti kortelių iš savęs!</value>
+  <data name="BotSendingTradeToYourself" xml:space="preserve">
+    <value>Jūs negalite mainyti su savimi!</value>
   </data>
   <data name="BotNoASFAuthenticator" xml:space="preserve">
     <value>Šis botas neturi ASF 2FA įjungto! Ar jūs pamiršote importuoti savo autentifikatorių kaip ASF 2FA?</value>
